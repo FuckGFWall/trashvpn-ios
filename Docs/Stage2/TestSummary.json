@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-31",
+  "timezone": "Asia/Shanghai",
+  "device": "Richard / iPhone 12 Pro Max / iOS 18.7.8",
+  "version": "1.0.0",
+  "build": 10012,
+  "cacheLifetimeSeconds": 21600,
+  "protocols": [
+    "wg",
+    "awg",
+    "masque"
+  ],
+  "initialLiveRegistrationAndCache": {
+    "result": "Passed",
+    "totalTestCount": 4,
+    "passedTests": 4,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "finalRegression": {
+    "result": "Failed",
+    "totalTestCount": 23,
+    "passedTests": 22,
+    "failedTests": 1,
+    "skippedTests": 0
+  },
+  "sameCacheWGRetry": {
+    "result": "Passed",
+    "totalTestCount": 1,
+    "passedTests": 1,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "observations": [
+    "19 unit checks passed in final regression.",
+    "All four live scenarios passed on first live registration run.",
+    "Final WG exit verification timed out once; same identity and cache passed a single retry without registration or optimization."
+  ],
+  "bundles": [
+    "TestResults/Stage2-Unit.xcresult",
+    "TestResults/Stage2-Live.xcresult",
+    "TestResults/Stage2-Acceptance.xcresult",
+    "TestResults/Stage2-WG-Retry.xcresult"
+  ]
+}

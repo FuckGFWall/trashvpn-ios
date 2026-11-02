@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-31",
+  "timezone": "Asia/Shanghai",
+  "device": "Richard / iPhone 12 Pro Max / iOS 18.7.8",
+  "version": "1.0.0",
+  "build": 10010,
+  "kernel": "ProjectClash/Clash v1.19.33-clash.4",
+  "result": "Passed",
+  "totalTestCount": 6,
+  "passedTests": 6,
+  "failedTests": 0,
+  "skippedTests": 0,
+  "verifiedEndpoint": "8.39.125.159:2408",
+  "traceWarp": "on",
+  "backgroundSeconds": 20,
+  "resultBundle": "TestResults/Device-Stage1-Acceptance.xcresult"
+}

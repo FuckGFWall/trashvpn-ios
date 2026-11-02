@@ -1,0 +1,26 @@
+Core: 1.19.33
+VPN: 未连接
+Protocol: wg
+Family: ipv6
+Cache: 暂无有效节点缓存
+
+2026-10-31T10:52:01Z VPN status=未连接
+2026-10-31T10:56:04Z 当前网络未找到可用的 WG 端点，可稍后重新优选。注册身份已保留。
+
+以下是滚动诊断日志保留的采样片段；完整失败结果保留在 IPv6-WG-Live.xcresult。
+2026-10-31T10:54:48Z wg:[2606:4700:d1:0:3ef7:4867:a46d:78d7]:1701 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:54:53Z wg:[2606:4700:d1:0:57ba:d868:8d63:df9e]:1701 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:54:58Z wg:[2606:4700:d1:0:8908:6caa:1dc6:390d]:1701 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:03Z wg:[2606:4700:d1:0:b05a:88ec:460a:b9ca]:1701 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:08Z wg:[2606:4700:d0::a29f:c001]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:13Z wg:[2606:4700:d1::a29f:c001]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:18Z wg:[2606:4700:d0::1]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:23Z wg:[2606:4700:d1::1]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:28Z wg:[2606:4700:d0:0:1153:7079:5ded:4d29]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:33Z wg:[2606:4700:d0:0:e19d:6b3d:72ce:e474]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:39Z wg:[2606:4700:d0:0:493d:6860:fdcc:6fd7]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:44Z wg:[2606:4700:d0:0:2155:5337:103d:fab1]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:49Z wg:[2606:4700:d1:0:3ef7:4867:a46d:78d7]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:54Z wg:[2606:4700:d1:0:57ba:d868:8d63:df9e]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:55:59Z wg:[2606:4700:d1:0:8908:6caa:1dc6:390d]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T10:56:04Z wg:[2606:4700:d1:0:b05a:88ec:460a:b9ca]:4500 sample=-1ms outcome={"message":"Timeout"}

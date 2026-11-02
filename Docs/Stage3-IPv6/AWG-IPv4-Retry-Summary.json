@@ -1,0 +1,42 @@
+{
+  "devicesAndConfigurations" : [
+    {
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "00008101-001128C03EC2001E",
+        "deviceName" : "Richard",
+        "modelName" : "iPhone 12 Pro Max",
+        "osBuildNumber" : "22H352",
+        "osVersion" : "18.7.8",
+        "platform" : "iOS"
+      },
+      "expectedFailures" : 0,
+      "failedTests" : 0,
+      "passedTests" : 1,
+      "skippedTests" : 0,
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription" : "TrashVPN · Built with macOS 26.3",
+  "expectedFailures" : 0,
+  "failedTests" : 0,
+  "finishTime" : 1793445566.754,
+  "passedTests" : 1,
+  "result" : "Passed",
+  "skippedTests" : 0,
+  "startTime" : 1793445531.52,
+  "statistics" : [
+
+  ],
+  "testFailures" : [
+
+  ],
+  "title" : "Test - TrashVPN",
+  "topInsights" : [
+
+  ],
+  "totalTestCount" : 1
+}

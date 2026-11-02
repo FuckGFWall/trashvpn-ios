@@ -1,0 +1,130 @@
+{
+  "build": 10015,
+  "date": "2026-10-31",
+  "qualityVersion": 2,
+  "note": "Cloudflare download payload; YouTube HTTPS 204 connectivity, no automated video playback. Mbps rounded from device logs.",
+  "awgLow": {
+    "mtu": 1280,
+    "timeoutSeconds": 10,
+    "nodes": [
+      {
+        "endpoint": "awg:188.114.96.138:2408",
+        "downloadMbps": [
+          11.12,
+          15.88
+        ],
+        "minimumMbps": 11.12
+      },
+      {
+        "endpoint": "awg:8.6.112.26:2408",
+        "downloadMbps": [
+          7.07,
+          7.05
+        ],
+        "minimumMbps": 7.05
+      },
+      {
+        "endpoint": "awg:8.6.112.7:500",
+        "downloadMbps": [
+          6.75,
+          11.23
+        ],
+        "minimumMbps": 6.75
+      }
+    ]
+  },
+  "awgHigh": {
+    "mtu": 1360,
+    "timeoutSeconds": 7,
+    "nodes": [
+      {
+        "endpoint": "awg:162.159.192.116:2408",
+        "downloadMbps": [
+          14.98,
+          19.65,
+          17.82,
+          18.28
+        ],
+        "minimumMbps": 14.98
+      }
+    ]
+  },
+  "masqueMedium": {
+    "mtu": 1280,
+    "timeoutSeconds": 10,
+    "nodes": [
+      {
+        "endpoint": "masque:162.159.198.2:1701",
+        "downloadMbps": [
+          7.69,
+          6.19,
+          8.38
+        ],
+        "minimumMbps": 6.19
+      },
+      {
+        "endpoint": "masque:162.159.198.2:443",
+        "downloadMbps": [
+          6.0,
+          6.25,
+          6.47
+        ],
+        "minimumMbps": 6.0
+      },
+      {
+        "endpoint": "masque:162.159.198.1:443",
+        "downloadMbps": [
+          5.17,
+          6.01,
+          6.21
+        ],
+        "minimumMbps": 5.17
+      },
+      {
+        "endpoint": "masque:162.159.198.2:4443",
+        "downloadMbps": [
+          5.99,
+          6.47,
+          7.3
+        ],
+        "minimumMbps": 5.99
+      },
+      {
+        "endpoint": "masque:162.159.198.2:500",
+        "downloadMbps": [
+          6.72,
+          8.21,
+          10.26
+        ],
+        "minimumMbps": 6.72
+      },
+      {
+        "endpoint": "masque:162.159.198.1:8095",
+        "downloadMbps": [
+          6.69,
+          8.29,
+          4.59
+        ],
+        "minimumMbps": 4.59
+      },
+      {
+        "endpoint": "masque:162.159.198.1:500",
+        "downloadMbps": [
+          7.7,
+          8.66,
+          8.74
+        ],
+        "minimumMbps": 7.7
+      },
+      {
+        "endpoint": "masque:162.159.198.2:4500",
+        "downloadMbps": [
+          7.09,
+          9.29,
+          8.68
+        ],
+        "minimumMbps": 7.09
+      }
+    ]
+  }
+}

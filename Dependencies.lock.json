@@ -1,0 +1,13 @@
+{
+  "kernel": {
+    "repository": "https://github.com/ProjectClash/Clash",
+    "tag": "v1.19.33-clash.4",
+    "revision": "4b7d5f53cff448f01cd5012b5e3f7eddc7d43e33",
+    "asset": "Clash.xcframework.zip",
+    "sha256": "914516ee009606cf4b3fec411b5f269a2b49c49677209cb172bfefaf20188a76"
+  },
+  "adapter": {
+    "repository": "https://github.com/ProjectClash/Clash-Adapter",
+    "revision": "d47c04a3556a67f95929aaa15ae624c7df631e74"
+  }
+}

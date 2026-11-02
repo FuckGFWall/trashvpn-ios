@@ -1,0 +1,83 @@
+{
+  "date": "2026-10-31",
+  "timezone": "Asia/Shanghai",
+  "version": "1.0.0",
+  "build": 10011,
+  "device": "Richard / iPhone 12 Pro Max / iOS 18.7.8",
+  "supportedProtocols": [
+    "wg",
+    "awg",
+    "masque"
+  ],
+  "masqueTransport": "quic / HTTP/3",
+  "newProtocolTestResult": {
+    "result": "Passed",
+    "totalTestCount": 11,
+    "passedTests": 11,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "verifiedEndpoints": {
+    "awg": "8.6.112.125:2408",
+    "masque": "162.159.198.1:8095",
+    "wg": "8.39.125.159:2408"
+  },
+  "backgroundSeconds": 20,
+  "resultBundles": [
+    "TestResults/ThreeProtocols-Initial.xcresult",
+    "TestResults/ThreeProtocols-WG-Regression.xcresult"
+  ],
+  "awgSamples": {
+    "8.6.112.26:2408": [
+      241,
+      320,
+      -1
+    ],
+    "8.6.112.125:2408": [
+      241,
+      -1,
+      308
+    ],
+    "8.6.112.93:2408": [
+      -1,
+      -1,
+      322
+    ],
+    "8.35.211.176:2408": [
+      211,
+      316,
+      -1
+    ]
+  },
+  "masqueSamples": {
+    "162.159.198.2:443": [
+      -1,
+      -1,
+      206
+    ],
+    "162.159.198.1:1701": [
+      316,
+      217,
+      264
+    ],
+    "162.159.198.1:8095": [
+      234,
+      241,
+      315
+    ],
+    "162.159.198.2:500": [
+      320,
+      250,
+      261
+    ]
+  },
+  "wgRegression": {
+    "result": "Passed",
+    "totalTestCount": 1,
+    "passedTests": 1,
+    "failedTests": 0,
+    "skippedTests": 0
+  },
+  "totalPassedTests": 12,
+  "totalFailedTests": 0
+}

@@ -1,0 +1,995 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04BE2CDFC4FBDB738959D66D /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9FF98258E2009467E02DDF /* UserSettings.swift */; };
+		054F4DA69395F792D1CF9480 /* WARPConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2534BFA591D290CEF4C5B9A4 /* WARPConfigurationTests.swift */; };
+		06F18B91320E5EEE4D43DBEC /* ClashRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294B03C5986F27DD566E78A9 /* ClashRuntime.swift */; };
+		1B119F47C827AA19DB60AA05 /* ProbeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE67B39CDA897CFAB0D8554 /* ProbeController.swift */; };
+		1FC86262F4C8B6529DC2520F /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA69C29817DFFFD283B2929 /* Diagnostics.swift */; };
+		2501B0C8279DE046B3529D95 /* Stage3DeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AFDF54CC15AE00B4B9F959 /* Stage3DeviceTests.swift */; };
+		2A617EB82AE6950139150535 /* WARPAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD92A0F68A62B141A37C97D /* WARPAccount.swift */; };
+		2D353DE649A0CA036342C7B5 /* SettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3D0C0E507B71F3C63850EB0 /* SettingsTests.swift */; };
+		30AE9A328ECB67258A222397 /* Clash.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA28A6C796EC4B5E7C13FE26 /* Clash.framework */; };
+		30CD69C2A1433ABA7FF699D6 /* NodePreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94FE0D3034661FE739627252 /* NodePreparation.swift */; };
+		30FAFB8A6D2FA4880628CB41 /* WARPRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69ED5DD0F87795400B2B2D15 /* WARPRegistration.swift */; };
+		3D1C48A51AC10D202446BCDF /* IPAddressFamily.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C593EA071E619865FE31075 /* IPAddressFamily.swift */; };
+		497A951987800C06EC9FB9C4 /* TunnelNetworkSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A6432CEF614D315BB6D8D0 /* TunnelNetworkSettings.swift */; };
+		49A27008A42ED9C6E94B72B0 /* NodePreparationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7CEAC5935BEF3AD1ADC4181 /* NodePreparationTests.swift */; };
+		4DA1E00D4C085EC8F560F268 /* NodeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3477E12DDD47D434F72651C1 /* NodeCache.swift */; };
+		5056620F188150D75EB524F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F956AE0D7ABF39263CAEDB1E /* ContentView.swift */; };
+		51E379C481C799A9FD3261CA /* icon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 04073B4DCE3C91A52A044AFE /* icon.icon */; };
+		645C2B7585D6201193820E62 /* PreparationProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4653D7B112B5FF810E82B95 /* PreparationProgress.swift */; };
+		6C43BC3CAA823B7DCB9A8837 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE43846E21457D11A0467786 /* PacketTunnelProvider.swift */; };
+		6E0369EDC5BDB6380E658B4D /* ProviderLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E4FF45A5DF96050E49EFAC /* ProviderLifecycle.swift */; };
+		6FBC163591AD80C556FAEC3B /* ClashRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294B03C5986F27DD566E78A9 /* ClashRuntime.swift */; };
+		74A5100A476BCDA112FE8C40 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA69C29817DFFFD283B2929 /* Diagnostics.swift */; };
+		79F36DE9C40F65C89BF19EE8 /* ProbeResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790BA590E5DD933EAC500EE7 /* ProbeResult.swift */; };
+		7A3E8227D8B95AD7C8358693 /* PacketFlowBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D00557ED91B6812EC5F923 /* PacketFlowBridge.swift */; };
+		7C7CE08008E6E22E8EFC682B /* NodeQualityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA8EC82E04CC326FB8786A8 /* NodeQualityProbe.swift */; };
+		80149CC248D51519E3BEE8EE /* IPAddressFamily.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C593EA071E619865FE31075 /* IPAddressFamily.swift */; };
+		8264912D12E2ECC96631BB9F /* Licenses in Resources */ = {isa = PBXBuildFile; fileRef = A2EE6E5D791A99095BA7E693 /* Licenses */; };
+		829C16A84769BDED0C70CC3F /* NodeQualityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE80E62C8E506ACD53547F9D /* NodeQualityTests.swift */; };
+		86F84235D79659F1BFD3F931 /* NodeCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3477E12DDD47D434F72651C1 /* NodeCache.swift */; };
+		8B4A3E442DEBA4B9BC186B4A /* Clash.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = FA28A6C796EC4B5E7C13FE26 /* Clash.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		8F968F8CA713A98EA113AE81 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1BB0AF0AD9A7499DC9E25414 /* Assets.xcassets */; };
+		9554438C2D5573955926FB21 /* IPv6Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D685D896679051652A4BC73B /* IPv6Tests.swift */; };
+		9742F78ABD9BDEFDC9E50545 /* TunnelNetworkSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A6432CEF614D315BB6D8D0 /* TunnelNetworkSettings.swift */; };
+		99B9B454FE327F3F6168A03E /* ProviderLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E4FF45A5DF96050E49EFAC /* ProviderLifecycle.swift */; };
+		9DA2CAF7291E16D8256A708C /* Clash.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA28A6C796EC4B5E7C13FE26 /* Clash.framework */; };
+		9EE6576D46A28EEC352A6B9A /* WARPConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F07A2F536044241BB6339E /* WARPConfiguration.swift */; };
+		A6999A6CF484C630DC6849D2 /* ProbeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE67B39CDA897CFAB0D8554 /* ProbeController.swift */; };
+		A881B1E573DB92B28C3FEE68 /* WARPConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F07A2F536044241BB6339E /* WARPConfiguration.swift */; };
+		A911E6F8FC5B33E271889532 /* ClashCore.c in Sources */ = {isa = PBXBuildFile; fileRef = F5D59442CEBD2995A0F98007 /* ClashCore.c */; };
+		A9743BF3F11671277C4ABF10 /* VPNModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1166F1FEA559B395C2B935D /* VPNModel.swift */; };
+		AC2A1ED15D6C2C45F0F315A6 /* ProbeResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 790BA590E5DD933EAC500EE7 /* ProbeResult.swift */; };
+		AE2F34C96C1DF5FCBFD06222 /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 6C7D46EFA391DDD678D76FF2 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AF6A24952079AFA74803EC08 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD86C133075378216124E304 /* SettingsView.swift */; };
+		B9CA2F19EEEB964B2C52D52F /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B9FF98258E2009467E02DDF /* UserSettings.swift */; };
+		BFE1E21963D2FAAB6E7EF441 /* PreparationProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4653D7B112B5FF810E82B95 /* PreparationProgress.swift */; };
+		C104308E313D5C5694B1D829 /* EndpointProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A01D391BE82CB89A32E8755E /* EndpointProbe.swift */; };
+		C48CC2665C131CFACE5AAB51 /* TrashVPNApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F9091E1C28C3DDD2E51B11F /* TrashVPNApp.swift */; };
+		F3F9134DDAFC8B1F64791777 /* WARPRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94CBADCAAB35F3B804917413 /* WARPRegistrationTests.swift */; };
+		FBDC832B3E46E5452B792207 /* WARPAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD92A0F68A62B141A37C97D /* WARPAccount.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0F598F4789E8FCC2F65CD5E3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C26D5141DFCC290F2984EA28 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 834EE27E71DBEE3378F07B3A;
+			remoteInfo = PacketTunnel;
+		};
+		1951BFF5E6B4D24E8139FB2F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C26D5141DFCC290F2984EA28 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D8C2BBF4FE34189A262CF329;
+			remoteInfo = Clash;
+		};
+		7A8439866314C5C9909646DA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C26D5141DFCC290F2984EA28 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 414572C3881290205D8F8D07;
+			remoteInfo = TrashVPN;
+		};
+		9F6B16054A1C46A54925F5B0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C26D5141DFCC290F2984EA28 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 414572C3881290205D8F8D07;
+			remoteInfo = TrashVPN;
+		};
+		E514D3C5A13D5686FA74A5FC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C26D5141DFCC290F2984EA28 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D8C2BBF4FE34189A262CF329;
+			remoteInfo = Clash;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		40705520C827A4EF1790511E /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8B4A3E442DEBA4B9BC186B4A /* Clash.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C51FA54E1678EE6510E50A1B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AE2F34C96C1DF5FCBFD06222 /* PacketTunnel.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		04073B4DCE3C91A52A044AFE /* icon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = icon.icon; sourceTree = "<group>"; };
+		0DA8EC82E04CC326FB8786A8 /* NodeQualityProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeQualityProbe.swift; sourceTree = "<group>"; };
+		0F9091E1C28C3DDD2E51B11F /* TrashVPNApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashVPNApp.swift; sourceTree = "<group>"; };
+		17AFDF54CC15AE00B4B9F959 /* Stage3DeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stage3DeviceTests.swift; sourceTree = "<group>"; };
+		1BB0AF0AD9A7499DC9E25414 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2534BFA591D290CEF4C5B9A4 /* WARPConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARPConfigurationTests.swift; sourceTree = "<group>"; };
+		294B03C5986F27DD566E78A9 /* ClashRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClashRuntime.swift; sourceTree = "<group>"; };
+		31F07A2F536044241BB6339E /* WARPConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARPConfiguration.swift; sourceTree = "<group>"; };
+		3477E12DDD47D434F72651C1 /* NodeCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeCache.swift; sourceTree = "<group>"; };
+		5B8832AB526A1AD90F8F816A /* TrashVPNTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrashVPNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B9FF98258E2009467E02DDF /* UserSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
+		69ED5DD0F87795400B2B2D15 /* WARPRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARPRegistration.swift; sourceTree = "<group>"; };
+		6C7D46EFA391DDD678D76FF2 /* PacketTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		6FA69C29817DFFFD283B2929 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		790BA590E5DD933EAC500EE7 /* ProbeResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeResult.swift; sourceTree = "<group>"; };
+		7CE67B39CDA897CFAB0D8554 /* ProbeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeController.swift; sourceTree = "<group>"; };
+		8FD92A0F68A62B141A37C97D /* WARPAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARPAccount.swift; sourceTree = "<group>"; };
+		94CBADCAAB35F3B804917413 /* WARPRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WARPRegistrationTests.swift; sourceTree = "<group>"; };
+		94FE0D3034661FE739627252 /* NodePreparation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePreparation.swift; sourceTree = "<group>"; };
+		9C593EA071E619865FE31075 /* IPAddressFamily.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAddressFamily.swift; sourceTree = "<group>"; };
+		A01D391BE82CB89A32E8755E /* EndpointProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointProbe.swift; sourceTree = "<group>"; };
+		A2EE6E5D791A99095BA7E693 /* Licenses */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Licenses; path = App/Licenses; sourceTree = SOURCE_ROOT; };
+		A7CEAC5935BEF3AD1ADC4181 /* NodePreparationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodePreparationTests.swift; sourceTree = "<group>"; };
+		AF8D15073CB40D42656A6BBC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B2A6432CEF614D315BB6D8D0 /* TunnelNetworkSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelNetworkSettings.swift; sourceTree = "<group>"; };
+		B3D00557ED91B6812EC5F923 /* PacketFlowBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketFlowBridge.swift; sourceTree = "<group>"; };
+		BD86C133075378216124E304 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C1166F1FEA559B395C2B935D /* VPNModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNModel.swift; sourceTree = "<group>"; };
+		C2E4FF45A5DF96050E49EFAC /* ProviderLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLifecycle.swift; sourceTree = "<group>"; };
+		CE43846E21457D11A0467786 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		CE839FB120634B5E37182EF9 /* TrashVPNUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TrashVPNUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D685D896679051652A4BC73B /* IPv6Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPv6Tests.swift; sourceTree = "<group>"; };
+		E3D0C0E507B71F3C63850EB0 /* SettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTests.swift; sourceTree = "<group>"; };
+		E4653D7B112B5FF810E82B95 /* PreparationProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationProgress.swift; sourceTree = "<group>"; };
+		E5DF5709385B5C5D1433C688 /* TrashVPN.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TrashVPN.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F40B2CFB52C2939E4F310077 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		F5D59442CEBD2995A0F98007 /* ClashCore.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ClashCore.c; sourceTree = "<group>"; };
+		F956AE0D7ABF39263CAEDB1E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		FA28A6C796EC4B5E7C13FE26 /* Clash.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Clash.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE80E62C8E506ACD53547F9D /* NodeQualityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NodeQualityTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		81D2852DF56BB1BA9788AF1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9DA2CAF7291E16D8256A708C /* Clash.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB8870C623A607A4B1637BA4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				30AE9A328ECB67258A222397 /* Clash.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		166C13F0F020EC8159CC1636 /* PacketTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				AF8D15073CB40D42656A6BBC /* Info.plist */,
+				CE43846E21457D11A0467786 /* PacketTunnelProvider.swift */,
+			);
+			path = PacketTunnel;
+			sourceTree = "<group>";
+		};
+		1B0574E6BEC178C7826D8CC1 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				294B03C5986F27DD566E78A9 /* ClashRuntime.swift */,
+				6FA69C29817DFFFD283B2929 /* Diagnostics.swift */,
+				9C593EA071E619865FE31075 /* IPAddressFamily.swift */,
+				3477E12DDD47D434F72651C1 /* NodeCache.swift */,
+				E4653D7B112B5FF810E82B95 /* PreparationProgress.swift */,
+				7CE67B39CDA897CFAB0D8554 /* ProbeController.swift */,
+				790BA590E5DD933EAC500EE7 /* ProbeResult.swift */,
+				B2A6432CEF614D315BB6D8D0 /* TunnelNetworkSettings.swift */,
+				5B9FF98258E2009467E02DDF /* UserSettings.swift */,
+				8FD92A0F68A62B141A37C97D /* WARPAccount.swift */,
+				31F07A2F536044241BB6339E /* WARPConfiguration.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		206D425BD339D330B9D9A103 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1BB0AF0AD9A7499DC9E25414 /* Assets.xcassets */,
+				F956AE0D7ABF39263CAEDB1E /* ContentView.swift */,
+				A01D391BE82CB89A32E8755E /* EndpointProbe.swift */,
+				04073B4DCE3C91A52A044AFE /* icon.icon */,
+				F40B2CFB52C2939E4F310077 /* Info.plist */,
+				A2EE6E5D791A99095BA7E693 /* Licenses */,
+				94FE0D3034661FE739627252 /* NodePreparation.swift */,
+				0DA8EC82E04CC326FB8786A8 /* NodeQualityProbe.swift */,
+				BD86C133075378216124E304 /* SettingsView.swift */,
+				0F9091E1C28C3DDD2E51B11F /* TrashVPNApp.swift */,
+				C1166F1FEA559B395C2B935D /* VPNModel.swift */,
+				69ED5DD0F87795400B2B2D15 /* WARPRegistration.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		2C018725A2790F8F5ED3C854 /* ClashAdapter */ = {
+			isa = PBXGroup;
+			children = (
+				B3D00557ED91B6812EC5F923 /* PacketFlowBridge.swift */,
+				C2E4FF45A5DF96050E49EFAC /* ProviderLifecycle.swift */,
+			);
+			path = ClashAdapter;
+			sourceTree = "<group>";
+		};
+		3DA4FC4A288381B2FC5EAD5A /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				D685D896679051652A4BC73B /* IPv6Tests.swift */,
+				A7CEAC5935BEF3AD1ADC4181 /* NodePreparationTests.swift */,
+				FE80E62C8E506ACD53547F9D /* NodeQualityTests.swift */,
+				E3D0C0E507B71F3C63850EB0 /* SettingsTests.swift */,
+				2534BFA591D290CEF4C5B9A4 /* WARPConfigurationTests.swift */,
+				94CBADCAAB35F3B804917413 /* WARPRegistrationTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		779C9A1F5709C3083BF27D03 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				17AFDF54CC15AE00B4B9F959 /* Stage3DeviceTests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		88A69AFAA9FCEF0ADF289447 = {
+			isa = PBXGroup;
+			children = (
+				206D425BD339D330B9D9A103 /* App */,
+				D10DD6319A0C5F8D72497EA7 /* Core */,
+				166C13F0F020EC8159CC1636 /* PacketTunnel */,
+				1B0574E6BEC178C7826D8CC1 /* Shared */,
+				3DA4FC4A288381B2FC5EAD5A /* Tests */,
+				779C9A1F5709C3083BF27D03 /* UITests */,
+				E3588D86180E2A65028F1068 /* Vendor */,
+				8F210634D6A34DCD88FAB48F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8F210634D6A34DCD88FAB48F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FA28A6C796EC4B5E7C13FE26 /* Clash.framework */,
+				6C7D46EFA391DDD678D76FF2 /* PacketTunnel.appex */,
+				E5DF5709385B5C5D1433C688 /* TrashVPN.app */,
+				5B8832AB526A1AD90F8F816A /* TrashVPNTests.xctest */,
+				CE839FB120634B5E37182EF9 /* TrashVPNUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D10DD6319A0C5F8D72497EA7 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				F5D59442CEBD2995A0F98007 /* ClashCore.c */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		E3588D86180E2A65028F1068 /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				2C018725A2790F8F5ED3C854 /* ClashAdapter */,
+			);
+			path = Vendor;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1B29422B2083D1E32800ED5D /* TrashVPNTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F09FD26B38F2E442B20A3AC3 /* Build configuration list for PBXNativeTarget "TrashVPNTests" */;
+			buildPhases = (
+				B58FFE2C3CC6DAE0944B449D /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DDBE36FE3926F247A2A4D698 /* PBXTargetDependency */,
+			);
+			name = TrashVPNTests;
+			packageProductDependencies = (
+			);
+			productName = TrashVPNTests;
+			productReference = 5B8832AB526A1AD90F8F816A /* TrashVPNTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		414572C3881290205D8F8D07 /* TrashVPN */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8BD312F90C4E48807B3FD2A7 /* Build configuration list for PBXNativeTarget "TrashVPN" */;
+			buildPhases = (
+				04706D86482889203A68EFAC /* Sources */,
+				EC717E584F88B133CE481AD8 /* Resources */,
+				81D2852DF56BB1BA9788AF1F /* Frameworks */,
+				C51FA54E1678EE6510E50A1B /* Embed Foundation Extensions */,
+				40705520C827A4EF1790511E /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A342CFCD2B1963B031B3A4D4 /* PBXTargetDependency */,
+				4C56CCCE15BA718236A9C7E2 /* PBXTargetDependency */,
+			);
+			name = TrashVPN;
+			packageProductDependencies = (
+			);
+			productName = TrashVPN;
+			productReference = E5DF5709385B5C5D1433C688 /* TrashVPN.app */;
+			productType = "com.apple.product-type.application";
+		};
+		834EE27E71DBEE3378F07B3A /* PacketTunnel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1DC1702FE58919FAAABC711A /* Build configuration list for PBXNativeTarget "PacketTunnel" */;
+			buildPhases = (
+				7F62012169732DD20D80C5FA /* Sources */,
+				BB8870C623A607A4B1637BA4 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				647526DFCFAECA3619618A4D /* PBXTargetDependency */,
+			);
+			name = PacketTunnel;
+			packageProductDependencies = (
+			);
+			productName = PacketTunnel;
+			productReference = 6C7D46EFA391DDD678D76FF2 /* PacketTunnel.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A68F8DB697CC821D71294FF5 /* TrashVPNUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 385ACF68EE45B2D0A0BAC5C3 /* Build configuration list for PBXNativeTarget "TrashVPNUITests" */;
+			buildPhases = (
+				580B395DDB5347BCA3705453 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6EB6D6D59CFAE986D230234C /* PBXTargetDependency */,
+			);
+			name = TrashVPNUITests;
+			packageProductDependencies = (
+			);
+			productName = TrashVPNUITests;
+			productReference = CE839FB120634B5E37182EF9 /* TrashVPNUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		D8C2BBF4FE34189A262CF329 /* Clash */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 91FCD8ED477538062F7FB6C7 /* Build configuration list for PBXNativeTarget "Clash" */;
+			buildPhases = (
+				56D1B9C51C6F0DE95C6AC228 /* Copy official SDK headers */,
+				2017A1602A643FE988A7713E /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Clash;
+			packageProductDependencies = (
+			);
+			productName = Clash;
+			productReference = FA28A6C796EC4B5E7C13FE26 /* Clash.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C26D5141DFCC290F2984EA28 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1B29422B2083D1E32800ED5D = {
+						DevelopmentTeam = 4LQT8WXV3K;
+						ProvisioningStyle = Automatic;
+					};
+					414572C3881290205D8F8D07 = {
+						DevelopmentTeam = 4LQT8WXV3K;
+						ProvisioningStyle = Automatic;
+					};
+					834EE27E71DBEE3378F07B3A = {
+						DevelopmentTeam = 4LQT8WXV3K;
+						ProvisioningStyle = Automatic;
+					};
+					A68F8DB697CC821D71294FF5 = {
+						DevelopmentTeam = 4LQT8WXV3K;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 414572C3881290205D8F8D07;
+					};
+					D8C2BBF4FE34189A262CF329 = {
+						DevelopmentTeam = 4LQT8WXV3K;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 20A908B612C2DBB8A2CACF69 /* Build configuration list for PBXProject "TrashVPN" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 88A69AFAA9FCEF0ADF289447;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8F210634D6A34DCD88FAB48F /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				414572C3881290205D8F8D07 /* TrashVPN */,
+				D8C2BBF4FE34189A262CF329 /* Clash */,
+				834EE27E71DBEE3378F07B3A /* PacketTunnel */,
+				1B29422B2083D1E32800ED5D /* TrashVPNTests */,
+				A68F8DB697CC821D71294FF5 /* TrashVPNUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		EC717E584F88B133CE481AD8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F968F8CA713A98EA113AE81 /* Assets.xcassets in Resources */,
+				8264912D12E2ECC96631BB9F /* Licenses in Resources */,
+				51E379C481C799A9FD3261CA /* icon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		56D1B9C51C6F0DE95C6AC228 /* Copy official SDK headers */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy official SDK headers";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(PUBLIC_HEADERS_FOLDER_PATH)/ref.h",
+				"$(TARGET_BUILD_DIR)/$(PUBLIC_HEADERS_FOLDER_PATH)/Clash.objc.h",
+				"$(TARGET_BUILD_DIR)/$(PUBLIC_HEADERS_FOLDER_PATH)/Universe.objc.h",
+				"$(TARGET_BUILD_DIR)/$(PUBLIC_HEADERS_FOLDER_PATH)/Clash.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nsrc=\"$SRCROOT/Vendor/Clash.xcframework/$CLASH_CORE_SLICE/Clash.framework/Headers\"\ndst=\"$TARGET_BUILD_DIR/$PUBLIC_HEADERS_FOLDER_PATH\"\nmkdir -p \"$dst\"\nfor h in ref.h Clash.objc.h Universe.objc.h Clash.h; do\n  cp -f \"$src/$h\" \"$dst/$h\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		04706D86482889203A68EFAC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6FBC163591AD80C556FAEC3B /* ClashRuntime.swift in Sources */,
+				5056620F188150D75EB524F3 /* ContentView.swift in Sources */,
+				1FC86262F4C8B6529DC2520F /* Diagnostics.swift in Sources */,
+				C104308E313D5C5694B1D829 /* EndpointProbe.swift in Sources */,
+				80149CC248D51519E3BEE8EE /* IPAddressFamily.swift in Sources */,
+				4DA1E00D4C085EC8F560F268 /* NodeCache.swift in Sources */,
+				30CD69C2A1433ABA7FF699D6 /* NodePreparation.swift in Sources */,
+				7C7CE08008E6E22E8EFC682B /* NodeQualityProbe.swift in Sources */,
+				645C2B7585D6201193820E62 /* PreparationProgress.swift in Sources */,
+				A6999A6CF484C630DC6849D2 /* ProbeController.swift in Sources */,
+				79F36DE9C40F65C89BF19EE8 /* ProbeResult.swift in Sources */,
+				99B9B454FE327F3F6168A03E /* ProviderLifecycle.swift in Sources */,
+				AF6A24952079AFA74803EC08 /* SettingsView.swift in Sources */,
+				C48CC2665C131CFACE5AAB51 /* TrashVPNApp.swift in Sources */,
+				497A951987800C06EC9FB9C4 /* TunnelNetworkSettings.swift in Sources */,
+				04BE2CDFC4FBDB738959D66D /* UserSettings.swift in Sources */,
+				A9743BF3F11671277C4ABF10 /* VPNModel.swift in Sources */,
+				2A617EB82AE6950139150535 /* WARPAccount.swift in Sources */,
+				9EE6576D46A28EEC352A6B9A /* WARPConfiguration.swift in Sources */,
+				30FAFB8A6D2FA4880628CB41 /* WARPRegistration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2017A1602A643FE988A7713E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A911E6F8FC5B33E271889532 /* ClashCore.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		580B395DDB5347BCA3705453 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2501B0C8279DE046B3529D95 /* Stage3DeviceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7F62012169732DD20D80C5FA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				06F18B91320E5EEE4D43DBEC /* ClashRuntime.swift in Sources */,
+				74A5100A476BCDA112FE8C40 /* Diagnostics.swift in Sources */,
+				3D1C48A51AC10D202446BCDF /* IPAddressFamily.swift in Sources */,
+				86F84235D79659F1BFD3F931 /* NodeCache.swift in Sources */,
+				7A3E8227D8B95AD7C8358693 /* PacketFlowBridge.swift in Sources */,
+				6C43BC3CAA823B7DCB9A8837 /* PacketTunnelProvider.swift in Sources */,
+				BFE1E21963D2FAAB6E7EF441 /* PreparationProgress.swift in Sources */,
+				1B119F47C827AA19DB60AA05 /* ProbeController.swift in Sources */,
+				AC2A1ED15D6C2C45F0F315A6 /* ProbeResult.swift in Sources */,
+				6E0369EDC5BDB6380E658B4D /* ProviderLifecycle.swift in Sources */,
+				9742F78ABD9BDEFDC9E50545 /* TunnelNetworkSettings.swift in Sources */,
+				B9CA2F19EEEB964B2C52D52F /* UserSettings.swift in Sources */,
+				FBDC832B3E46E5452B792207 /* WARPAccount.swift in Sources */,
+				A881B1E573DB92B28C3FEE68 /* WARPConfiguration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B58FFE2C3CC6DAE0944B449D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9554438C2D5573955926FB21 /* IPv6Tests.swift in Sources */,
+				49A27008A42ED9C6E94B72B0 /* NodePreparationTests.swift in Sources */,
+				829C16A84769BDED0C70CC3F /* NodeQualityTests.swift in Sources */,
+				2D353DE649A0CA036342C7B5 /* SettingsTests.swift in Sources */,
+				054F4DA69395F792D1CF9480 /* WARPConfigurationTests.swift in Sources */,
+				F3F9134DDAFC8B1F64791777 /* WARPRegistrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4C56CCCE15BA718236A9C7E2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 834EE27E71DBEE3378F07B3A /* PacketTunnel */;
+			targetProxy = 0F598F4789E8FCC2F65CD5E3 /* PBXContainerItemProxy */;
+		};
+		647526DFCFAECA3619618A4D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D8C2BBF4FE34189A262CF329 /* Clash */;
+			targetProxy = 1951BFF5E6B4D24E8139FB2F /* PBXContainerItemProxy */;
+		};
+		6EB6D6D59CFAE986D230234C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 414572C3881290205D8F8D07 /* TrashVPN */;
+			targetProxy = 7A8439866314C5C9909646DA /* PBXContainerItemProxy */;
+		};
+		A342CFCD2B1963B031B3A4D4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D8C2BBF4FE34189A262CF329 /* Clash */;
+			targetProxy = E514D3C5A13D5686FA74A5FC /* PBXContainerItemProxy */;
+		};
+		DDBE36FE3926F247A2A4D698 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 414572C3881290205D8F8D07 /* TrashVPN */;
+			targetProxy = 9F6B16054A1C46A54925F5B0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1A47A92ABB0E835CB3AC5649 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = icon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		38BFC7BDA3D36E0C00C47D81 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPNUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TrashVPN;
+			};
+			name = Debug;
+		};
+		40F58F017051273F26799453 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = icon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4C56A784C657ABC44E3B7571 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPNTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrashVPN.app/TrashVPN";
+			};
+			name = Release;
+		};
+		6CAFAE7D7AB5E74EFA8A4CAF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 10015;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 4LQT8WXV3K;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		85D5EC16E262AC2BCF0933F8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPNUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = TrashVPN;
+			};
+			name = Release;
+		};
+		9602D2BE8C9FEE4D22D6E39B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN.PacketTunnel;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		988E24B28D970EC053B03FAB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = PacketTunnel/PacketTunnel.entitlements;
+				INFOPLIST_FILE = PacketTunnel/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN.PacketTunnel;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B81E691C6DEE3C2CA98CEF49 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLASH_CORE_ARCHIVE = "$(SRCROOT)/Vendor/Clash.xcframework/$(CLASH_CORE_SLICE)/Clash.framework/Clash";
+				"CLASH_CORE_SLICE[sdk=iphoneos*]" = "ios-arm64";
+				"CLASH_CORE_SLICE[sdk=iphonesimulator*]" = "ios-arm64_x86_64-simulator";
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Core/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MODULEMAP_FILE = Core/module.modulemap;
+				OTHER_LDFLAGS = (
+					"-Wl,-force_load,$(CLASH_CORE_ARCHIVE)",
+					"-lresolv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN.core;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		D5554D57CF96E71D35A129EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLASH_CORE_ARCHIVE = "$(SRCROOT)/Vendor/Clash.xcframework/$(CLASH_CORE_SLICE)/Clash.framework/Clash";
+				"CLASH_CORE_SLICE[sdk=iphoneos*]" = "ios-arm64";
+				"CLASH_CORE_SLICE[sdk=iphonesimulator*]" = "ios-arm64_x86_64-simulator";
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				INFOPLIST_FILE = Core/Info.plist;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MODULEMAP_FILE = Core/module.modulemap;
+				OTHER_LDFLAGS = (
+					"-Wl,-force_load,$(CLASH_CORE_ARCHIVE)",
+					"-lresolv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPN.core;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		D85F5D3AB4F873962B4511AC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.TrashVPNTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TrashVPN.app/TrashVPN";
+			};
+			name = Debug;
+		};
+		F28AC9767ADC37D59BF97B86 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 10015;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4LQT8WXV3K;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1DC1702FE58919FAAABC711A /* Build configuration list for PBXNativeTarget "PacketTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				988E24B28D970EC053B03FAB /* Debug */,
+				9602D2BE8C9FEE4D22D6E39B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		20A908B612C2DBB8A2CACF69 /* Build configuration list for PBXProject "TrashVPN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6CAFAE7D7AB5E74EFA8A4CAF /* Debug */,
+				F28AC9767ADC37D59BF97B86 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		385ACF68EE45B2D0A0BAC5C3 /* Build configuration list for PBXNativeTarget "TrashVPNUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				38BFC7BDA3D36E0C00C47D81 /* Debug */,
+				85D5EC16E262AC2BCF0933F8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8BD312F90C4E48807B3FD2A7 /* Build configuration list for PBXNativeTarget "TrashVPN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				40F58F017051273F26799453 /* Debug */,
+				1A47A92ABB0E835CB3AC5649 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		91FCD8ED477538062F7FB6C7 /* Build configuration list for PBXNativeTarget "Clash" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D5554D57CF96E71D35A129EA /* Debug */,
+				B81E691C6DEE3C2CA98CEF49 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F09FD26B38F2E442B20A3AC3 /* Build configuration list for PBXNativeTarget "TrashVPNTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D85F5D3AB4F873962B4511AC /* Debug */,
+				4C56A784C657ABC44E3B7571 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C26D5141DFCC290F2984EA28 /* Project object */;
+}

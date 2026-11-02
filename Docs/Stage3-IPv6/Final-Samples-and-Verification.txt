@@ -1,0 +1,19 @@
+2026-10-31T11:22:34Z cache hit protocol=masque family=ipv6
+2026-10-31T11:22:34Z cache hit protocol=masque family=ipv6
+2026-10-31T11:22:49Z verification passed protocol=masque family=ipv6 endpoint=[2606:4700:103::2]:443 warp=on exit=2a09:bac5:1f0c:281e::3ff:3e
+2026-10-31T11:23:16Z verification passed protocol=masque family=ipv6 endpoint=[2606:4700:103::2]:443 warp=on exit=2a09:bac5:1f0c:281e::3ff:3e
+2026-10-31T11:23:20Z cache hit protocol=masque family=ipv6
+2026-10-31T11:21:35Z masque:[2606:4700:103::1]:443 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T11:21:39Z masque:[2606:4700:103::1]:443 sample=319ms outcome={"delay":319}
+2026-10-31T11:21:44Z masque:[2606:4700:103::1]:443 sample=320ms outcome={"delay":320}
+2026-10-31T11:21:49Z masque:[2606:4700:103::2]:443 sample=320ms outcome={"delay":320}
+2026-10-31T11:21:53Z masque:[2606:4700:103::2]:443 sample=320ms outcome={"delay":320}
+2026-10-31T11:21:58Z masque:[2606:4700:103::2]:443 sample=321ms outcome={"delay":321}
+2026-10-31T11:22:02Z masque:[2606:4700:104::2]:1701 sample=319ms outcome={"delay":319}
+2026-10-31T11:22:06Z masque:[2606:4700:104::2]:1701 sample=311ms outcome={"delay":311}
+2026-10-31T11:22:11Z masque:[2606:4700:104::2]:1701 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T11:22:16Z masque:[2606:4700:103::2]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T11:22:21Z masque:[2606:4700:103::2]:4500 sample=319ms outcome={"delay":319}
+2026-10-31T11:22:26Z masque:[2606:4700:103::2]:4500 sample=-1ms outcome={"message":"Timeout"}
+2026-10-31T11:23:11Z time="2026-10-31T19:23:11.403175000+08:00" level=debug msg="[DNS] cache hit www.cloudflare.com --> [2606:4700::6810:7b60 2606:4700::6810:7c60] AAAA, expire at 2026-10-31 11:24:49"
+2026-10-31T11:23:11Z time="2026-10-31T19:23:11.403205000+08:00" level=debug msg="[DNS] cache hit www.cloudflare.com --> [104.16.123.96 104.16.124.96] A, expire at 2026-10-31 11:27:07"

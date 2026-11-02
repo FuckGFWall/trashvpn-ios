@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+
+# Xcode build products and per-user settings
+/build/
+/DerivedData/
+/TestResults/
+*.xcresult
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Local signing credentials and configuration
+/LocalSecrets/
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+!.env.example
+
+# Downloaded dependencies and reference checkouts, restored by bootstrap
+/Downloads/
+/Reference/
+/Vendor/Clash.xcframework/
+/Vendor/THIRD_PARTY_LICENSES/
+/App/Licenses/THIRD_PARTY_LICENSES/
