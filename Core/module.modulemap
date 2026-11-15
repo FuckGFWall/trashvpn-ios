@@ -1,0 +1,12 @@
+// The module the app and the packet tunnel import as `Clash`. Same four headers,
+// same order, as the module map gomobile writes into Clash.xcframework; the
+// headers themselves are copied out of the locked xcframework at build time
+// (see the ClashCore target in project.yml), so this file never carries a copy
+// that could drift from ClashSDK.lock.json.
+framework module Clash {
+    header "ref.h"
+    header "Clash.objc.h"
+    header "Universe.objc.h"
+    header "Clash.h"
+    export *
+}
