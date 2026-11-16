@@ -1,27 +1,39 @@
 import Clash
 import Foundation
 
-/// All requests belong to this app's authenticated loopback proxy; no system proxy or TUN is installed.
+/// Requests use the app's authenticated loopback proxy; no system proxy or TUN is installed.
 actor NodeQualityProbe {
     func run(endpoints: [WARPEndpoint], account: WARPAccount, settings: UserSettings,
+        completed: [ProbeResult] = [], partial: ProbeResult? = nil,
+        checkpoint: (@Sendable (ProbeResult) async throws -> Void)? = nil,
+        didComplete: (@Sendable (ProbeResult) async throws -> Void)? = nil,
         progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult] {
+        func enough(_ values: [ProbeResult]) -> Bool { values.filter { $0.qualifies(settings: settings) }.count >= settings.strength.desiredResults }
+        if completed.count == endpoints.count || enough(completed) { return completed }
         let platform = CorePlatform(isExtension: false)
         try platform.prepare(family: settings.addressFamily)
         defer { platform.shutdown() }
         try CoreRuntime.setup(isExtension: false, family: settings.addressFamily, mtu: settings.effectiveMTU)
-        var results: [ProbeResult] = []
-        for (index, endpoint) in endpoints.enumerated() {
+        var results = completed
+        for (index, endpoint) in endpoints.enumerated() where index >= completed.count {
             try Task.checkCancellation()
             let result = try await measure(endpoint, account: account, settings: settings, platform: platform,
-                index: index, total: endpoints.count, progress: progress)
+                index: index, total: endpoints.count, partial: partial?.endpoint == endpoint ? partial : nil,
+                checkpoint: checkpoint, progress: progress)
+            try await didComplete?(result)
             results.append(result)
             await progress(.sample(result))
+            if enough(results) { break }
         }
         return results
     }
 
     private func measure(_ endpoint: WARPEndpoint, account: WARPAccount, settings: UserSettings, platform: CorePlatform,
-        index: Int, total: Int, progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> ProbeResult {
+        index: Int, total: Int, partial: ProbeResult?, checkpoint: (@Sendable (ProbeResult) async throws -> Void)?,
+        progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> ProbeResult {
+        let strength = settings.strength, profile = settings.qualityProfile
+        // Covers a process kill between committing the last measurement and completing the node.
+        if let partial, partial.measurementFinished { return partial }
         let proxy = try ProbeProxy.allocate()
         var error: NSError?
         guard let service = ClashNewService(platform, &error) else { throw error ?? WARPError.message("质量测试内核创建失败") }
@@ -38,33 +50,37 @@ actor NodeQualityProbe {
         options.urlCredentialStorage = nil
         let session = URLSession(configuration: options, delegate: authentication, delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        var samples: [Int32] = []
-        var speeds: [Double] = []
-        var google = 0
-        let strength = settings.strength
-        func emit(_ stage: PreparationProgress.Stage, _ local: Double, _ title: String, _ detail: String) async {
-            await progress(.progress(.init(stage: stage, fraction: 0.72 + (Double(index) + local) / Double(total) * 0.22,
-                title: title, detail: "节点 \(index + 1)/\(total) · \(endpoint.address)\n\(detail)")))
+        var samples = partial?.samples ?? []
+        var speeds = partial?.downloadMbps ?? []
+        var google = partial?.googleSuccesses ?? 0
+        func emit(_ stage: PreparationProgress.Stage, _ local: Double, _ title: LocalizedText, _ detail: LocalizedText) async {
+            await progress(.progress(.init(stage: stage, fraction: 0.60 + (Double(index) + local) / Double(total) * 0.34,
+                title: title, detail: "\(endpoint.address)\n\(detail)", substep: index + 1, substepTotal: total, substepLabel: "测速节点")))
         }
         func result() -> ProbeResult {
-            ProbeResult(endpoint: endpoint, samples: samples, testedAt: Date(), downloadMbps: speeds, googleSuccesses: google, qualityVersion: 2)
+            ProbeResult(endpoint: endpoint, samples: samples, testedAt: Date(), downloadMbps: speeds,
+                googleSuccesses: google, qualityVersion: 3, qualityProfile: profile)
         }
         do {
-            await emit(.retesting, 0, "校验测速链路", "确认实际经过 WARP，预热连接")
+            await emit(.retesting, 0, partial == nil ? "校验测速链路" : "恢复测速链路",
+                "确认实际经过 WARP，保留已完成的连通与下载结果")
             let (trace, response) = try await session.data(for: request("https://speed.cloudflare.com/cdn-cgi/trace", timeout: max(8, settings.probeTimeout)))
             let text = String(decoding: trace, as: UTF8.self)
             guard (response as? HTTPURLResponse)?.statusCode == 200, authentication.wasUsed,
                   text.split(separator: "\n").contains(where: { $0 == "warp=on" || $0 == "warp=plus" }) else {
                 throw WARPError.message("未确认测速请求通过所选 WARP 节点")
             }
-            // Warm both origins before recording latency. Keep the adapter and proxy sessions alive.
-            for url in [WARPConfiguration.testURL, "https://www.youtube.com/generate_204"] {
-                _ = try await session.data(for: request(url, timeout: max(8, settings.probeTimeout)))
+            // Warm each origin once so a cold TLS handshake does not look like latency jitter.
+            if !result().passesStability(profile) {
+                for url in [WARPConfiguration.testURL, "https://www.youtube.com/generate_204"] {
+                    _ = try await session.data(for: request(url, timeout: max(8, settings.probeTimeout)))
+                }
             }
-            for round in 0..<strength.rounds {
+            while result().needsMoreLatency(profile) {
                 try Task.checkCancellation()
-                await emit(.retesting, Double(round) / Double(strength.rounds) * 0.5,
-                    "稳定性复测 \(round + 1)/\(strength.rounds)", round % 2 == 0 ? "检查 Cloudflare 连通与延迟" : "检查 YouTube 连通与延迟")
+                let round = samples.count
+                await emit(.retesting, Double(round) / Double(strength.maximumRounds) * 0.5,
+                    "稳定性检查", "\(round < strength.minimumRounds ? "检查" : "补测")第 \(round + 1) 次（最多 \(strength.maximumRounds) 次） · \(round % 2 == 0 ? "Cloudflare" : "YouTube")，达标即结束")
                 let url = round % 2 == 0 ? WARPConfiguration.testURL : "https://www.youtube.com/generate_204"
                 let start = Date()
                 do {
@@ -76,30 +92,32 @@ actor NodeQualityProbe {
                     if Task.isCancelled { throw CancellationError() }
                     samples.append(-1)
                 }
+                try await checkpoint?(result())
             }
-            guard result().passesStability(strength) else { return result() }
-            await emit(.downloading, 0.5, "预热下载连接", "排除 TCP 慢启动影响，再测持续下载速度")
-            let (warmup, warmupResponse) = try await session.data(for: request("https://speed.cloudflare.com/__down?bytes=\(strength.warmupBytes)", timeout: max(10, settings.probeTimeout)))
-            guard (warmupResponse as? HTTPURLResponse)?.statusCode == 200, warmup.count == strength.warmupBytes else { return result() }
-            for round in 0..<strength.downloadRounds {
+            guard result().passesStability(profile) else { return result() }
+            if settings.downloadTestEnabled && speeds.isEmpty {
+                await emit(.downloading, 0.5, "下载预热", "预热 \(settings.downloadWarmupBytes / 1024) KiB，随后只测一次下载")
+                let (warmup, warmupResponse) = try await session.data(for: request("https://speed.cloudflare.com/__down?bytes=\(settings.downloadWarmupBytes)", timeout: max(10, settings.probeTimeout)))
+                guard (warmupResponse as? HTTPURLResponse)?.statusCode == 200, warmup.count == settings.downloadWarmupBytes else { return result() }
                 try Task.checkCancellation()
-                await emit(.downloading, 0.5 + Double(round) / Double(strength.downloadRounds) * 0.5,
-                    "下载测速 \(round + 1)/\(strength.downloadRounds)", "连续下载 \(strength.downloadBytes / 1024) KiB，检查实际速度与稳定性")
+                await emit(.downloading, 0.65, "下载测速", "下载 \(settings.measuredDownloadBytes / 1024) KiB · 最低要求 \(settings.minimumDownloadMbps.formatted()) Mbps")
                 let start = Date()
-                let transferTimeout = max(settings.probeTimeout, Int(ceil(Double(strength.downloadBytes) * 8 / (ProbeResult.minimumMbps * 1_000_000))) + 8)
-                let (data, response) = try await session.data(for: request("https://speed.cloudflare.com/__down?bytes=\(strength.downloadBytes)", timeout: transferTimeout))
-                guard (response as? HTTPURLResponse)?.statusCode == 200, data.count == strength.downloadBytes else { return result() }
+                let transferTimeout = min(30, max(settings.probeTimeout, Int(ceil(Double(settings.measuredDownloadBytes) * 8 / (profile.minimumMbps * 1_000_000))) + 4))
+                let (data, response) = try await session.data(for: request("https://speed.cloudflare.com/__down?bytes=\(settings.measuredDownloadBytes)", timeout: transferTimeout))
+                guard (response as? HTTPURLResponse)?.statusCode == 200, data.count == settings.measuredDownloadBytes else { return result() }
                 let mbps = Double(data.count) * 8 / max(0.001, Date().timeIntervalSince(start)) / 1_000_000
                 speeds.append(mbps)
-                Diagnostics.record("quality \(endpoint.id) download=\(String(format: "%.2f", mbps))Mbps bytes=\(data.count)", process: "probe")
-                if mbps < ProbeResult.minimumMbps { return result() }
+                try await checkpoint?(result())
+                Diagnostics.record("quality \(endpoint.id) download=\(String(format: "%.2f", mbps))Mbps bytes=\(data.count) rounds=1", process: "probe")
             }
         } catch {
             if Task.isCancelled { throw CancellationError() }
+            if error is OptimizationCheckpointWriteError { throw error }
             Diagnostics.record("quality rejected \(endpoint.id): \(error.localizedDescription)", process: "probe")
         }
         let measured = result()
-        await emit(.downloading, 1, measured.qualifies(strength) ? "节点通过质量筛选" : "节点未达到质量要求", measured.label)
+        await emit(settings.downloadTestEnabled ? .downloading : .retesting, 1,
+            measured.qualifies(profile) ? "节点通过筛选" : "节点未达到要求", measured.localizedLabel)
         return measured
     }
 

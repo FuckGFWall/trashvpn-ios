@@ -107,9 +107,16 @@ final class CoreInterfaceIterator: NSObject, ClashNetworkInterfaceIteratorProtoc
 enum CoreRuntime {
     static func setup(isExtension: Bool, family: IPAddressFamily = .ipv4, mtu: Int = 1280) throws {
         // Darwin sockaddr_un.sun_path allows only 103 bytes including this directory.
+        #if targetEnvironment(simulator)
+        // Simulator App Group paths include the host's device/container hierarchy and exceed
+        // the Unix socket limit. Isolate a short runtime directory per simulated device.
+        let simulator = ProcessInfo.processInfo.environment["SIMULATOR_UDID"].flatMap(UUID.init(uuidString:))?.uuidString ?? String(getpid())
+        let directory = URL(fileURLWithPath: "/tmp/trashvpn-\(simulator)").appendingPathComponent(isExtension ? "t" : "p")
+        #else
         let directory = try WARPConfiguration.container().appendingPathComponent(isExtension ? "t" : "p")
+        #endif
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+            attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication, .posixPermissions: 0o700])
         let options = ClashSetupOptions()
         options.basePath = directory.path
         options.workingPath = directory.appendingPathComponent("working").path

@@ -11,38 +11,53 @@ struct NodeCache: Codable, Equatable, Sendable {
     private var family: IPAddressFamily?
     private var measurementFingerprint: String?
     private var sampleCount: Int?
+    private var qualityProfile: ProbeQualityProfile?
     var addressFamily: IPAddressFamily { family ?? .ipv4 }
+    private var measuredStrength: UserSettings.Strength? { UserSettings.Strength.allCases.first { $0.rounds == sampleCount } }
 
     init(account: WARPAccount, results: [ProbeResult], now: Date, family: IPAddressFamily = .ipv4, settings: UserSettings? = nil) throws {
-        let rounds = settings?.strength.rounds ?? 3
         let usable = results.filter { result in
-            result.endpoint.kind == account.kind && result.endpoint.family == family && result.samples.count == rounds && result.median != nil
-                && (settings == nil || result.qualifies(settings!.strength))
-        }
-            .sorted(by: ProbeResult.isBetter)
+            result.endpoint.kind == account.kind && result.endpoint.family == family && result.endpoint.isValid && result.median != nil
+                && (settings.map { result.qualifies(settings: $0) } ?? (result.samples.count == 3))
+        }.sorted(by: ProbeResult.isBetter)
         guard account.isRegistered, !usable.isEmpty else { throw WARPError.message("没有通过完整验证的节点，未更新缓存。") }
-        schema = settings == nil ? 1 : 3; kind = account.kind; accountFingerprint = account.fingerprint
-        createdAt = now; expiresAt = now.addingTimeInterval(settings?.cacheLifetime ?? Self.lifetime); self.results = usable
-        self.family = family
+        let adaptive = usable.allSatisfy { $0.qualityVersion == 3 }
+        guard settings == nil || adaptive || usable.allSatisfy({ $0.qualityVersion == 2 }) else {
+            throw WARPError.message("测量版本不一致，未更新缓存。")
+        }
+        schema = settings == nil ? 1 : adaptive ? 4 : 3
+        kind = account.kind; accountFingerprint = account.fingerprint
+        createdAt = now; expiresAt = settings?.cacheExpiry(from: now) ?? now.addingTimeInterval(Self.lifetime); self.results = usable
+        self.family = family; qualityProfile = adaptive ? settings?.qualityProfile : nil
         measurementFingerprint = settings?.measurementFingerprint; sampleCount = settings?.strength.rounds
     }
 
-    func expiry(settings: UserSettings) -> Date { createdAt.addingTimeInterval(settings.cacheLifetime) }
+    func expiry(settings: UserSettings) -> Date { settings.cacheExpiry(from: createdAt) }
+
+    /// Validate against the originally recorded policy so permanent caches and exports survive preference changes.
+    func canExport(for account: WARPAccount, family: IPAddressFamily) -> Bool {
+        guard [3, 4].contains(schema), account.isRegistered, account.kind == kind, account.fingerprint == accountFingerprint,
+              addressFamily == family, !results.isEmpty,
+              Set(results.map { $0.endpoint.id }).count == results.count else { return false }
+        return results.allSatisfy { result in
+            guard result.endpoint.kind == kind, result.endpoint.family == family, result.endpoint.isValid else { return false }
+            if schema == 4 { return qualityProfile.map { result.qualifies($0) } == true }
+            return result.qualityVersion == 2 && measuredStrength.map { result.qualifies($0) } == true
+        }
+    }
 
     func isValid(for account: WARPAccount, now: Date, family: IPAddressFamily = .ipv4, settings: UserSettings? = nil) -> Bool {
         var configuration = settings ?? UserSettings(); configuration.addressFamily = family
-        let validSchema = settings == nil && schema == 1
-            ? expiresAt.timeIntervalSince(createdAt) == Self.lifetime
-            : schema == 3 && measurementFingerprint == configuration.measurementFingerprint
-                && sampleCount == configuration.strength.rounds
-                && UserSettings.cacheDurations.contains { expiresAt.timeIntervalSince(createdAt) == TimeInterval($0 * 3600) }
-        return validSchema && account.isRegistered && account.kind == kind && account.fingerprint == accountFingerprint
-            && addressFamily == family
-            && now >= createdAt && now < expiry(settings: configuration)
-            && !results.isEmpty && results.allSatisfy {
-                $0.endpoint.kind == kind && $0.endpoint.family == family && $0.endpoint.isValid && $0.samples.count == (settings == nil && schema == 1 ? 3 : configuration.strength.rounds) && $0.median != nil
-                    && (settings == nil && schema == 1 || $0.qualifies(configuration.strength))
-            }
+        guard account.isRegistered, account.kind == kind, account.fingerprint == accountFingerprint, addressFamily == family else { return false }
+        if settings == nil && schema == 1 {
+            return expiresAt.timeIntervalSince(createdAt) == Self.lifetime && now >= createdAt && now < expiresAt
+                && !results.isEmpty && results.allSatisfy { $0.endpoint.kind == kind && $0.endpoint.family == family && $0.endpoint.isValid && $0.samples.count == 3 && $0.median != nil }
+        }
+        guard canExport(for: account, family: family),
+              expiresAt == .distantFuture || UserSettings.cacheDurations.filter({ $0 > 0 }).contains(where: { expiresAt.timeIntervalSince(createdAt) == TimeInterval($0 * 3600) }) else { return false }
+        if configuration.cacheNeverExpires { return true }
+        return measurementFingerprint == configuration.measurementFingerprint && now >= createdAt && now < expiry(settings: configuration)
+            && (schema == 4 ? qualityProfile == configuration.qualityProfile : sampleCount == configuration.strength.rounds)
     }
 }
 

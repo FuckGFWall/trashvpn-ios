@@ -97,6 +97,35 @@ enum WARPConfiguration {
         return url
     }
 
+    static func proxyDefinitions(endpoints: [WARPEndpoint], account: WARPAccount, family: IPAddressFamily, mtu: Int) throws -> [[String: Any]] {
+        guard account.isRegistered, !endpoints.isEmpty, (1280...1500).contains(mtu),
+              endpoints.allSatisfy({ $0.kind == account.kind && $0.isValid && $0.family == family }),
+              family != .ipv6 || IPv6Address(account.ipv6) != nil else {
+            throw WARPError.message("节点身份、地址族或 MTU 无效。")
+        }
+        let ipv6 = family == .ipv6
+        return try endpoints.map { endpoint in
+            var proxy: [String: Any] = ["name": endpoint.name, "type": "wireguard", "server": endpoint.host, "port": endpoint.port,
+             "ip": account.ipv4, "private-key": account.privateKey, "public-key": account.peerPublicKey,
+             "allowed-ips": ipv6 ? ["0.0.0.0/0", "::/0"] : ["0.0.0.0/0"], "persistent-keepalive": 25,
+             "mtu": mtu, "udp": true, "workers": 1,
+             "remote-dns-resolve": false]
+            if account.reserved.count == 3 { proxy["reserved"] = account.reserved.map(Int.init) }
+            if ipv6 { proxy["ipv6"] = account.ipv6 }
+            if endpoint.kind == .awg { proxy["amnezia-wg-option"] = awgOptions }
+            if endpoint.kind == .masque {
+                proxy = ["name": endpoint.name, "type": "masque", "server": endpoint.host, "port": endpoint.port,
+                    "private-key": account.privateKey, "public-key": try normalizePublicKey(account.peerPublicKey),
+                    "ip": "\(account.ipv4)/32",
+                    "sni": "consumer-masque.cloudflareclient.com", "network": "quic",
+                    "mtu": mtu, "udp": true, "skip-cert-verify": false,
+                    "remote-dns-resolve": false]
+                if !account.ipv6.isEmpty { proxy["ipv6"] = "\(account.ipv6)/128" }
+            }
+            return proxy
+        }
+    }
+
     static func render(endpoints: [WARPEndpoint], selected: WARPEndpoint, account: WARPAccount, tunnel: Bool,
         family: IPAddressFamily = .ipv4, settings: UserSettings? = nil, controller: ProbeController? = nil, probeProxy: ProbeProxy? = nil) throws -> String {
         var configuration = try (settings ?? UserSettings()).validated(); configuration.addressFamily = family
@@ -113,27 +142,8 @@ enum WARPConfiguration {
         let servers = custom.isEmpty ? ["1.1.1.1"] : custom
         let protectedDNS = configuration.doNotSetDNS || configuration.dnsLeakProtection
         let routed: (String) -> String = { protectedDNS ? $0 + "#" + selected.name : $0 }
-        let proxies: [[String: Any]] = try endpoints.map { endpoint in
-            var proxy: [String: Any] = ["name": endpoint.name, "type": "wireguard", "server": endpoint.host, "port": endpoint.port,
-             "ip": account.ipv4, "private-key": account.privateKey, "public-key": account.peerPublicKey,
-             "allowed-ips": ipv6 ? ["0.0.0.0/0", "::/0"] : ["0.0.0.0/0"], "persistent-keepalive": 25,
-             "mtu": configuration.effectiveMTU, "udp": true, "workers": 1,
-             "remote-dns-resolve": false]
-            if account.reserved.count == 3 { proxy["reserved"] = account.reserved.map(Int.init) }
-            if ipv6 { proxy["ipv6"] = account.ipv6 }
-            if endpoint.kind == .awg { proxy["amnezia-wg-option"] = awgOptions }
-            if endpoint.kind == .masque {
-                proxy = ["name": endpoint.name, "type": "masque", "server": endpoint.host, "port": endpoint.port,
-                    "private-key": account.privateKey, "public-key": try normalizePublicKey(account.peerPublicKey),
-                    "ip": "\(account.ipv4)/32",
-                    "sni": "consumer-masque.cloudflareclient.com", "network": "quic",
-                    "mtu": configuration.effectiveMTU, "udp": true, "skip-cert-verify": false,
-                    "remote-dns-resolve": false]
-                if !account.ipv6.isEmpty { proxy["ipv6"] = "\(account.ipv6)/128" }
-            }
-            return proxy
-        }
-        let config: [String: Any] = [
+        let proxies = try proxyDefinitions(endpoints: endpoints, account: account, family: family, mtu: configuration.effectiveMTU)
+        var config: [String: Any] = [
             "mode": "rule", "log-level": "debug", "ipv6": ipv6,
             "allow-lan": false, "bind-address": "127.0.0.1", "mixed-port": probeProxy.map { Int($0.port) } ?? 0, "socks-port": 0, "port": 0,
             "authentication": probeProxy.map { ["\($0.username):\($0.password)"] } ?? [], "skip-auth-prefixes": [],
@@ -155,12 +165,15 @@ enum WARPConfiguration {
                     "dns-hijack": configuration.doNotSetDNS ? [] : ["any:53"]],
             "proxies": proxies, "rules": ["MATCH,\(selected.name)"]
         ]
+        // Screening needs one connectivity result, not the SDK's optional second URL-test request.
+        // Final latency is measured separately over the already warm authenticated proxy session.
+        if controller != nil { config["unified-delay"] = false }
         // YAML's JSON subset does not accept Foundation's optional escaped slash (\/).
         return String(decoding: try JSONSerialization.data(withJSONObject: config, options: [.sortedKeys, .withoutEscapingSlashes]), as: UTF8.self)
     }
 }
 
 enum WARPError: LocalizedError {
-    case message(String)
-    var errorDescription: String? { if case let .message(message) = self { return message }; return nil }
+    case message(LocalizedText)
+    var errorDescription: String? { if case let .message(message) = self { return message.localized() }; return nil }
 }

@@ -29,5 +29,12 @@
 	</dict>
 	<key>WARPKeychainGroup</key>
 	<string>$(AppIdentifierPrefix)com.leo.TrashVPN.shared</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hans</string>
+		<string>en</string>
+		<string>zh-Hant</string>
+		<string>fa</string>
+	</array>
 </dict>
 </plist>

@@ -18,7 +18,8 @@ struct WARPRegistration: WARPRegistering {
     init(session: URLSession? = nil) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 35
+        configuration.timeoutIntervalForResource = 90
+        configuration.waitsForConnectivity = true
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         self.session = session ?? URLSession(configuration: configuration)
     }
@@ -27,10 +28,10 @@ struct WARPRegistration: WARPRegistering {
         checkpoint: @escaping @Sendable (WARPAccount) throws -> Void,
         progress: @escaping @Sendable (PreparationProgress) async -> Void = { _ in }) async throws -> WARPAccount {
         if let existing, existing.isRegistered {
-            await progress(.init(stage: .registered, fraction: 0.5, title: "注册身份已就绪", detail: "复用已注册的 \(kind.label) 身份"))
+            await progress(.init(stage: .registered, fraction: PreparationProgress.registrationMilestone, title: "注册身份已就绪", detail: "复用已注册的 \(kind.label) 身份"))
             return existing
         }
-        await progress(.init(stage: .credentials, fraction: 0.10, title: existing == nil ? "生成本机密钥" : "恢复未完成的注册", detail: "密钥只保存在本机共享钥匙串"))
+        await progress(.init(stage: .credentials, fraction: 0.07, title: existing == nil ? "生成本机密钥" : "恢复未完成的注册", detail: "密钥只保存在本机共享钥匙串"))
         var account = existing ?? .make(kind: kind)
         guard account.kind == kind else { throw WARPError.message("注册协议不匹配。") }
         try checkpoint(account)
@@ -47,7 +48,7 @@ struct WARPRegistration: WARPRegistering {
                     "model": "PC", "serial_number": UUID().uuidString.prefix(8).description,
                     "os_version": "10", "key_type": "curve25519", "tunnel_type": "wireguard", "locale": "en_US"]
             } else { payload = ["key": key] }
-            await progress(.init(stage: .registering, fraction: 0.24, title: "向 Cloudflare 创建注册", detail: "正在提交 \(kind.label) 设备公钥"))
+            await progress(.init(stage: .registering, fraction: 0.16, title: "向 Cloudflare 创建注册", detail: "正在提交 \(kind.label) 设备公钥"))
             let response = try await request(url: base, method: "POST", token: nil, kind: kind, payload: payload)
             account = try Self.apply(response, to: account, requireIdentity: true)
             account.state = .enrolling
@@ -55,14 +56,14 @@ struct WARPRegistration: WARPRegistering {
             try checkpoint(account)
         }
         try Task.checkCancellation()
-        await progress(.init(stage: .enrolling, fraction: 0.36, title: "激活隧道身份", detail: kind == .masque ? "正在登记 MASQUE 的 P-256 公钥" : "正在启用 WireGuard 设备身份"))
+        await progress(.init(stage: .enrolling, fraction: 0.24, title: "激活隧道身份", detail: kind == .masque ? "正在登记 MASQUE 的 P-256 公钥" : "正在启用 WireGuard 设备身份"))
         let payload: [String: Any] = kind == .masque
             ? ["key": account.publicKey, "key_type": "secp256r1", "tunnel_type": "masque", "name": "TrashVPN"]
             : ["warp_enabled": true]
         let response = try await request(url: base.appendingPathComponent(account.id), method: "PATCH",
             token: account.token, kind: kind, payload: payload)
         account = try Self.apply(response, to: account, requireIdentity: false)
-        await progress(.init(stage: .validating, fraction: 0.46, title: "校验注册结果", detail: "检查分配地址、对端公钥与设备身份"))
+        await progress(.init(stage: .validating, fraction: 0.30, title: "校验注册结果", detail: "检查分配地址、对端公钥与设备身份"))
         guard !account.peerPublicKey.isEmpty, !account.ipv4.isEmpty else {
             throw WARPError.message("Cloudflare 返回的节点身份不完整，注册未完成。")
         }
@@ -76,7 +77,7 @@ struct WARPRegistration: WARPRegistering {
         }
         account.state = .registered
         try checkpoint(account)
-        await progress(.init(stage: .registered, fraction: 0.5, title: "注册完成", detail: "身份已安全保存，开始准备优选"))
+        await progress(.init(stage: .registered, fraction: PreparationProgress.registrationMilestone, title: "注册完成", detail: "身份已安全保存，开始准备优选"))
         return account
     }
 

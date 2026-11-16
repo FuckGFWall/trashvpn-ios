@@ -27,7 +27,7 @@ final class SettingsTests: XCTestCase {
     }
 
     func testSettingsValidationAndFortyEightHourOption() throws {
-        XCTAssertEqual(UserSettings.cacheDurations, [6, 12, 24, 48])
+        XCTAssertEqual(UserSettings.cacheDurations, [6, 12, 24, 48, 0])
         var value = UserSettings()
         for mtu in [0, 1280, 1400, 1500] { value.mtu = mtu; XCTAssertNoThrow(try value.validated()) }
         for mtu in [-1, 1279, 1501] { value.mtu = mtu; XCTAssertThrowsError(try value.validated()) }
@@ -161,4 +161,112 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(ProbeResult.fastest([reliable, fast, failed]), nodes[1])
         XCTAssertNil(ProbeResult.fastest([failed]))
     }
+    func testLanguageMigrationPersistenceAndCacheIndependence() throws {
+        let legacy = try JSONDecoder().decode(UserSettings.self, from: Data("{}".utf8))
+        XCTAssertEqual(legacy.language, .system)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var settings = UserSettings()
+        let fingerprint = settings.measurementFingerprint
+        for language in AppLanguage.supported {
+            settings.language = language
+            try settings.save(root: root)
+            XCTAssertEqual(try UserSettings.load(root: root).language, language)
+            XCTAssertEqual(settings.measurementFingerprint, fingerprint)
+        }
+    }
+
+    func testSystemLanguageResolutionAndPersianDirection() {
+        XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["zh-CN"]), .simplifiedChinese)
+        for code in ["zh-Hant", "zh-TW", "zh-HK", "zh-MO"] {
+            XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: [code]), .traditionalChinese)
+        }
+        XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["fa-IR"]), .persian)
+        XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["fr-FR", "en-GB"]), .english)
+        XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["fr-FR"]), .english)
+        XCTAssertEqual(AppLanguage.system.resolved(preferredLanguages: ["fr-FR", "zh-CN"]), .english)
+        XCTAssertEqual(AppLanguage.supported, [.simplifiedChinese, .english, .traditionalChinese, .persian])
+        XCTAssertTrue(AppLanguage.persian.isRightToLeft)
+        XCTAssertFalse(AppLanguage.english.isRightToLeft)
+    }
+
+    func testFourTranslationTablesHaveMatchingKeysAndPlaceholders() throws {
+        let languages: [AppLanguage] = [.simplifiedChinese, .english, .traditionalChinese, .persian]
+        let tables = try languages.map { language -> [String: String] in
+            let url = try XCTUnwrap(language.bundle.url(forResource: "Localizable", withExtension: "strings"))
+            return try XCTUnwrap(PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: String])
+        }
+        XCTAssertGreaterThan(tables[0].count, 250)
+        let pattern = try NSRegularExpression(pattern: #"%[0-9]+\$@"#)
+        func placeholders(_ value: String) -> [String] {
+            pattern.matches(in: value, range: NSRange(value.startIndex..., in: value)).map { (value as NSString).substring(with: $0.range) }.sorted()
+        }
+        for table in tables {
+            XCTAssertEqual(Set(table.keys), Set(tables[0].keys))
+            for (key, translation) in table {
+                XCTAssertFalse(translation.isEmpty, key)
+                XCTAssertEqual(placeholders(key), placeholders(translation), key)
+            }
+        }
+        XCTAssertEqual(LocalizedText("设置").localized(in: .english), "Settings")
+        XCTAssertEqual(LocalizedText("设置").localized(in: .traditionalChinese), "設置")
+        XCTAssertEqual(LocalizedText("设置").localized(in: .persian), "تنظیمات")
+    }
+
+    func testLocalizedProgressPreservesArgumentsAcrossLanguageChangesAndPersistence() throws {
+        let value = PreparationProgress(stage: .candidates, fraction: 0.4, title: "生成候选端点",
+            detail: "已汇总 \(12) 个 \("IPv6") 端点，准备逐个检查")
+        XCTAssertTrue(value.localizedDisplayTitle(in: .english).contains("Generating candidates"))
+        XCTAssertTrue(value.detail.localized(in: .english).contains("12 IPv6 endpoints"))
+        XCTAssertTrue(value.detail.localized(in: .traditionalChinese).contains("已匯總"))
+        XCTAssertTrue(value.detail.localized(in: .persian).contains("IPv6"))
+        let restored = try JSONDecoder().decode(PreparationProgress.self, from: JSONEncoder().encode(value))
+        XCTAssertEqual(restored, value)
+        let legacy = Data(#"{"stage":"downloading","fraction":0.7,"title":"下载测速","detail":"节点缓存有效"}"#.utf8)
+        let migrated = try JSONDecoder().decode(PreparationProgress.self, from: legacy)
+        XCTAssertTrue(migrated.localizedDisplayTitle(in: .english).contains("Download speed test"))
+    }
+
+    func testConnectionLocationUsesASCIIColonsInEveryLanguage() throws {
+        let value = try XCTUnwrap(ConnectionLocation(trace: Data("loc=JP\ncolo=NRT\nwarp=on".utf8)))
+        for language in [AppLanguage.simplifiedChinese, .english, .traditionalChinese, .persian] {
+            let label = value.localizedLabel(in: language)
+            XCTAssertEqual(label.filter { $0 == ":" }.count, 2)
+            XCTAssertFalse(label.contains("："))
+            XCTAssertTrue(label.contains("🇯🇵")); XCTAssertTrue(label.contains("NRT"))
+        }
+    }
+
+    func testAboutAndDonationBrowserDestinations() {
+        let expected: [ProjectLink: String] = [
+            .website: "https://itmanager.top", .github: "https://github.com/FuckGFWall/trashvpn-ios",
+            .telegram: "https://t.me/+eJ2kUZ3kUJ9jZmNl", .youtube: "https://www.youtube.com/@TrashVPN",
+            .x: "https://x.com/trashvpn", .donate: "https://itmanager.top/donate.html"]
+        XCTAssertEqual(ProjectLink.community.count, 5)
+        XCTAssertFalse(ProjectLink.community.contains(.donate))
+        for link in ProjectLink.allCases {
+            XCTAssertEqual(link.url.absoluteString, expected[link])
+            XCTAssertEqual(link.url.scheme, "https")
+        }
+    }
+
+    func testFirstLaunchPinsSystemLanguageAndMigratesLegacySystemChoice() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let initial = try UserSettings.load(root: root)
+        XCTAssertEqual(initial.language, AppLanguage.system.resolved)
+        let url = root.appendingPathComponent("settings.json")
+        let saved = try JSONDecoder().decode(UserSettings.self, from: Data(contentsOf: url))
+        XCTAssertTrue(AppLanguage.supported.contains(saved.language))
+        var chosen = initial; chosen.language = .english
+        try chosen.save(root: root)
+        XCTAssertEqual(try UserSettings.load(root: root).language, .english)
+        try Data(#"{"language":"system"}"#.utf8).write(to: url)
+        let migrated = try UserSettings.load(root: root)
+        XCTAssertEqual(migrated.language, AppLanguage.system.resolved)
+        XCTAssertNotEqual(try JSONDecoder().decode(UserSettings.self, from: Data(contentsOf: url)).language, .system)
+    }
+
 }

@@ -10,12 +10,14 @@ struct ProbeStep: Sendable {
 }
 
 actor EndpointProbe {
-    func run(endpoints: [WARPEndpoint], account: WARPAccount, samples sampleCount: Int = 3, stopAfterSuccesses: Int? = nil,
+    func run(endpoints: [WARPEndpoint], account: WARPAccount, samples sampleCount: Int = 3, stopAfterSuccesses: Int? = nil, stopOnFirstSuccess: Bool = false,
         family: IPAddressFamily = .ipv4, settings: UserSettings? = nil,
+        resuming: [String: ProbeResult] = [:],
+        checkpoint: (@Sendable (ProbeResult) async throws -> Void)? = nil,
         willTest: (@Sendable (ProbeStep) async -> Void)? = nil,
         update: @escaping @Sendable (ProbeResult) async -> Void) async throws -> [ProbeResult] {
         var configuration = try (settings ?? UserSettings()).validated(); configuration.addressFamily = family
-        Diagnostics.reset("probe")
+        if resuming.isEmpty { Diagnostics.reset("probe") }
         let platform = CorePlatform(isExtension: false)
         try platform.prepare(family: family)
         defer { platform.shutdown() }
@@ -23,14 +25,17 @@ actor EndpointProbe {
         Diagnostics.record("probe started tun=false proxy listeners=none control=loopback-only timeout=\(configuration.probeTimeout)s mtu=\(configuration.effectiveMTU)", process: "probe")
         var results: [ProbeResult] = []
         for (index, endpoint) in endpoints.enumerated() {
-            var samples: [Int32] = []
-            for round in 1...sampleCount {
+            var samples = resuming[endpoint.id]?.samples ?? []
+            for round in min(samples.count, sampleCount)..<sampleCount {
+                if stopOnFirstSuccess && samples.contains(where: { $0 > 0 }) { break }
                 try Task.checkCancellation()
-                await willTest?(ProbeStep(endpoint: endpoint, index: index + 1, total: endpoints.count, round: round, rounds: sampleCount))
+                await willTest?(ProbeStep(endpoint: endpoint, index: index + 1, total: endpoints.count, round: round + 1, rounds: sampleCount))
                 // Each sample owns its adapter; a cancelled MASQUE URL-test must not poison the next sample.
                 let delay = try await sample(endpoint, account: account, configuration: configuration, platform: platform)
                 samples.append(delay)
-                await update(ProbeResult(endpoint: endpoint, samples: samples, testedAt: Date()))
+                let result = ProbeResult(endpoint: endpoint, samples: samples, testedAt: Date())
+                try await checkpoint?(result)
+                await update(result)
             }
             results.append(ProbeResult(endpoint: endpoint, samples: samples, testedAt: Date()))
             if let stopAfterSuccesses, results.filter({ $0.median != nil }).count >= stopAfterSuccesses { break }

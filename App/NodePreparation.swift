@@ -1,7 +1,7 @@
 import Foundation
 
 enum PreparationUpdate: Sendable {
-    case status(String)
+    case status(LocalizedText)
     case progress(PreparationProgress)
     case sample(ProbeResult)
 }
@@ -14,6 +14,14 @@ struct PreparedNodes: Sendable {
 protocol NodeOptimizing: Sendable {
     func optimize(account: WARPAccount, previous: NodeCache?,
         progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult]
+    func optimize(account: WARPAccount, previous: NodeCache?, steps: [PreparationProgress.Stage],
+        progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult]
+}
+extension NodeOptimizing {
+    func optimize(account: WARPAccount, previous: NodeCache?, steps: [PreparationProgress.Stage],
+        progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult] {
+        try await optimize(account: account, previous: previous, progress: progress)
+    }
 }
 
 struct EndpointCatalog {
@@ -67,33 +75,76 @@ struct EndpointCatalog {
 actor MihomoOptimizer: NodeOptimizing {
     private let probe = EndpointProbe()
     private let quality = NodeQualityProbe()
+    private let checkpoints: any OptimizationCheckpointStoring
+    private let userInitiated: Bool
     let configuration: UserSettings
-    init(family: IPAddressFamily = .ipv4, settings: UserSettings? = nil) {
+    init(family: IPAddressFamily = .ipv4, settings: UserSettings? = nil,
+        checkpoints: any OptimizationCheckpointStoring = OptimizationCheckpointStore(), userInitiated: Bool = false) {
         var value = settings ?? UserSettings(); value.addressFamily = family; configuration = value
+        self.checkpoints = checkpoints
+        self.userInitiated = userInitiated
     }
     func optimize(account: WARPAccount, previous: NodeCache?,
         progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult] {
-        let config = configuration
-        let candidates = EndpointCatalog.candidates(account: account, previous: previous,
-            family: config.addressFamily, limit: config.strength.candidates)
-        await progress(.progress(.init(stage: .candidates, fraction: 0.53, title: "生成候选端点",
-            detail: "已汇总 \(candidates.count) 个 \(config.addressFamily.label) 端点，准备逐个检查")))
-        let screened = try await probe.run(endpoints: candidates, account: account, samples: account.kind == .masque ? 3 : 2,
-            stopAfterSuccesses: config.strength.finalists, family: config.addressFamily, settings: config, willTest: { step in
-                await progress(.progress(.init(stage: .screening, fraction: 0.55 + Double(step.index - 1) / Double(step.total) * 0.13,
-                    title: "初筛端点 \(step.index)/\(step.total) · 尝试 \(step.round)/\(step.rounds)", detail: "\(step.endpoint.address) · 超时 \(config.probeTimeout) 秒")))
-            }) { result in
-                await progress(.sample(result))
-                let index = (candidates.firstIndex(of: result.endpoint) ?? 0) + 1
-                await progress(.progress(.init(stage: .screening, fraction: 0.55 + Double(index) / Double(candidates.count) * 0.13,
-                    title: "已检查 \(index) 个端点", detail: "\(result.endpoint.address) · \(result.label)")))
+        try await optimize(account: account, previous: previous, steps: PreparationProgress.plan(existing: account, download: configuration.downloadTestEnabled), progress: progress)
+    }
+    func optimize(account: WARPAccount, previous: NodeCache?, steps: [PreparationProgress.Stage],
+        progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult] {
+        var value = configuration; value.tunnelProtocol = account.kind
+        let config = value
+        let saved = try checkpoints.load(account.kind, family: config.addressFamily)
+        var initial: OptimizationCheckpoint
+        if let saved, saved.isValid(account: account, settings: config, now: Date()) {
+            initial = saved
+            Diagnostics.record("optimization resumed id=\(saved.id) screeningRounds=\(saved.screening.values.reduce(0) { $0 + $1.samples.count }) completedNodes=\(saved.completed.count) partialRounds=\(saved.partial?.samples.count ?? 0) downloads=\(saved.partial?.downloadMbps?.count ?? 0)", process: "app")
+        } else {
+            let candidates = EndpointCatalog.candidates(account: account, previous: previous,
+                family: config.addressFamily, limit: config.strength.candidates)
+            initial = OptimizationCheckpoint(account: account, settings: config, candidates: candidates, userInitiated: userInitiated)
+            try checkpoints.save(initial)
+            Diagnostics.record("optimization started id=\(initial.id) candidates=\(candidates.count)", process: "app")
+        }
+        initial.progress.steps = initial.progress.steps ?? steps
+        try checkpoints.save(initial)
+        let journal = OptimizationJournal(initial, store: checkpoints)
+        let publish: @Sendable (PreparationUpdate) async -> Void = { await journal.publish($0, to: progress) }
+        await publish(.progress(initial.progress))
+        for result in initial.displayResults { await publish(.sample(result)) }
+        var finalists = initial.finalists
+        if finalists == nil {
+            let candidates = initial.candidates
+            func screen(attempts: Int, saved: [String: ProbeResult]) async throws -> [ProbeResult] {
+                try await probe.run(endpoints: candidates, account: account, samples: attempts,
+                    stopAfterSuccesses: config.strength.qualityCandidates, stopOnFirstSuccess: true, family: config.addressFamily, settings: config,
+                    resuming: saved, checkpoint: { try await journal.screen($0) }, willTest: { step in
+                        await publish(.progress(.init(stage: .screening,
+                            fraction: 0.38 + Double(step.index - 1) / Double(step.total) * 0.17,
+                            title: attempts == 1 ? "连通筛选" : "补充连通检查",
+                            detail: "\(step.endpoint.address) · \(attempts == 1 ? "首次探测" : "未找到可用端点，再尝试一次") · 超时 \(config.probeTimeout) 秒",
+                            substep: step.index, substepTotal: step.total, substepLabel: "候选节点")))
+                    }) { result in await publish(.sample(result)) }
             }
-        try Task.checkCancellation()
-        let finalists = Array(screened.filter { $0.median != nil }.sorted(by: ProbeResult.isBetter).prefix(config.strength.finalists)).map(\.endpoint)
-        guard !finalists.isEmpty else { throw WARPError.message("当前网络未找到可用的 \(account.kind.label) · \(config.addressFamily.label) 端点，可切换网络或地址族后重试。注册身份已保留。") }
-        await progress(.progress(.init(stage: .shortlist, fraction: 0.70, title: "完成初筛，整理候选",
-            detail: "入围 \(finalists.count) 个节点，逐个检查稳定性、YouTube 连通和下载速度")))
-        return try await quality.run(endpoints: finalists, account: account, settings: config, progress: progress)
+            var screened = try await screen(attempts: 1, saved: initial.screening)
+            // Retry only when the entire first pass failed, instead of repeating every dead port.
+            if screened.allSatisfy({ $0.median == nil }) {
+                let snapshot = await journal.snapshot()
+                screened = try await screen(attempts: 2, saved: snapshot.screening)
+            }
+            try Task.checkCancellation()
+            let selected = Array(screened.filter { $0.median != nil }.sorted(by: ProbeResult.isBetter).prefix(config.strength.qualityCandidates)).map(\.endpoint)
+            guard !selected.isEmpty else {
+                try checkpoints.remove(account.kind, family: config.addressFamily)
+                throw WARPError.message("当前网络未找到可用的 \(account.kind.label) · \(config.addressFamily.label) 端点，可切换网络或地址族后重试。注册身份已保留。")
+            }
+            await publish(.progress(.init(stage: .shortlist, fraction: 0.58, title: "整理候选节点",
+                detail: "入围 \(selected.count) 个节点，取得 \(config.strength.desiredResults) 个合格节点即结束；\(config.downloadTestEnabled ? "检查稳定性、YouTube 连通和下载速度" : "只检查稳定性与 YouTube 连通，跳过下载测速")")))
+            try await journal.shortlist(selected)
+            finalists = selected
+        }
+        let snapshot = await journal.snapshot()
+        return try await quality.run(endpoints: finalists ?? [], account: account, settings: config,
+            completed: snapshot.completed, partial: snapshot.partial,
+            checkpoint: { try await journal.sample($0) }, didComplete: { try await journal.finish($0) }, progress: publish)
     }
 }
 
@@ -104,34 +155,55 @@ struct NodePreparation: Sendable {
     let optimizer: any NodeOptimizing
     var family: IPAddressFamily = .ipv4
     var settings: UserSettings? = nil
+    var checkpoints: (any OptimizationCheckpointStoring)? = nil
     var now: @Sendable () -> Date = { Date() }
 
     func prepare(kind: WARPProtocol, force: Bool = false,
-        progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> PreparedNodes {
+        progress sink: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> PreparedNodes {
+        let started = Date()
         try Task.checkCancellation()
-        var config = try (settings ?? UserSettings()).validated(); config.addressFamily = family
-        await progress(.progress(.init(stage: .checking, fraction: 0.02, title: "检查注册与缓存", detail: "\(kind.label) · \(family.label) · \(config.cacheHours) 小时有效期")))
+        var config = try (settings ?? UserSettings()).validated(); config.addressFamily = family; config.tunnelProtocol = kind
         let existing = try accounts.load(kind)
         let previous = try caches.load(kind, family: family)
-        if !force, let existing, let previous, previous.isValid(for: existing, now: now(), family: family, settings: config) {
+        if force { try checkpoints?.remove(kind, family: family) }
+        let saved = try checkpoints?.load(kind, family: family)
+        let pending = !force && existing.map { account in saved?.isValid(account: account, settings: config, now: now()) == true } == true ? saved : nil
+        let steps = pending?.progress.steps ?? PreparationProgress.plan(existing: existing, download: config.downloadTestEnabled)
+        let progress: @Sendable (PreparationUpdate) async -> Void = { update in
+            if case .progress(var value) = update { value.steps = steps; await sink(.progress(value)) }
+            else { await sink(update) }
+        }
+        let validCache = existing.flatMap { account in previous.flatMap { $0.isValid(for: account, now: now(), family: family, settings: config) ? $0 : nil } }
+        // A kill after cache.save but before checkpoint deletion must not refresh the cache timestamp.
+        if !force, let previous = validCache,
+           pending == nil || previous.createdAt >= pending!.startedAt || config.cacheNeverExpires && pending?.userInitiated != true {
+            try checkpoints?.remove(kind, family: family)
             await progress(.progress(.init(stage: .ready, fraction: 1, title: "连接已就绪", detail: "已恢复有效缓存，无需重复注册或优选")))
             return PreparedNodes(cache: previous, reusedCache: true)
         }
+        if let pending { await progress(.progress(pending.progress)) }
+        else { await progress(.progress(.init(stage: .checking, fraction: 0.02, title: "检查注册与缓存", detail: "\(kind.label) · \(family.label) · 缓存\(config.cacheDurationText)"))) }
         let store = accounts
         let account = try await registration.ensureRegistered(kind: kind, existing: existing,
-            checkpoint: { account in try store.save(account) }, progress: { update in await progress(.progress(update)) })
+            checkpoint: { account in try store.save(account) }, progress: { update in
+                if pending == nil { await progress(.progress(update)) }
+            })
         try Task.checkCancellation()
-        let results = try await optimizer.optimize(account: account, previous: previous, progress: progress)
+        let results = try await optimizer.optimize(account: account, previous: previous, steps: steps, progress: progress)
         try Task.checkCancellation()
-        await progress(.progress(.init(stage: .ranking, fraction: 0.96, title: "整理优选结果", detail: "剔除不稳定或下载不足 3 Mbps 的节点，按延迟排序")))
-        guard results.contains(where: { $0.qualifies(config.strength) }) else {
-            throw WARPError.message("没有节点同时达到稳定性、YouTube 连通和 3 Mbps 下载要求，未更新缓存。可更换网络、协议或地址族后重试。")
+        let requirement: LocalizedText = config.downloadTestEnabled ? "稳定性、YouTube 连通和 \(config.minimumDownloadMbps.formatted()) Mbps 下载" : "稳定性与 YouTube 连通"
+        await progress(.progress(.init(stage: .ranking, fraction: 0.96, title: "整理优选结果", detail: "按\(requirement)要求筛选，按延迟排序")))
+        guard results.contains(where: { $0.qualifies(settings: config) }) else {
+            try checkpoints?.remove(kind, family: family)
+            throw WARPError.message("没有节点同时达到\(requirement)要求，未更新缓存。可更换网络、协议或地址族后重试。")
         }
         let cache = try NodeCache(account: account, results: results, now: now(), family: family, settings: config)
-        await progress(.progress(.init(stage: .saving, fraction: 0.98, title: "保存节点缓存", detail: "写入 \(cache.results.count) 个可用节点，有效期 \(config.cacheHours) 小时")))
+        await progress(.progress(.init(stage: .saving, fraction: 0.98, title: "保存节点缓存", detail: "写入 \(cache.results.count) 个可用节点，缓存\(config.cacheDurationText)")))
         try Task.checkCancellation()
         try caches.save(cache)
-        Diagnostics.record("preparation completed protocol=\(kind.rawValue) family=\(family.rawValue) nodes=\(cache.results.count) cacheHours=\(config.cacheHours)", process: "app")
+        await progress(.progress(.init(stage: .finalizing, fraction: 0.99, title: "完成优选", detail: "节点缓存已写入，清理已完成的优选进度")))
+        try checkpoints?.remove(kind, family: family)
+        Diagnostics.record("preparation completed protocol=\(kind.rawValue) family=\(family.rawValue) nodes=\(cache.results.count) cacheHours=\(config.cacheHours) download=\(config.downloadTestEnabled) elapsed=\(Int(Date().timeIntervalSince(started)))s", process: "app")
         await progress(.progress(.init(stage: .ready, fraction: 1, title: "连接已就绪", detail: "优选完成，已保存 \(cache.results.count) 个节点")))
         return PreparedNodes(cache: cache, reusedCache: false)
     }

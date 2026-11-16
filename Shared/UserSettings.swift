@@ -22,11 +22,20 @@ struct UserSettings: Codable, Equatable, Sendable {
         var maxDownloadMiB: Int { Int(ceil(Double(finalists * (downloadRounds * downloadBytes + warmupBytes)) / 1024 / 1024)) }
         var jitterFactor: Double { switch self { case .low: return 0.75; case .medium: return 0.6; case .high: return 0.5 } }
         var speedConsistency: Double { switch self { case .low: return 0.4; case .medium: return 0.55; case .high: return 0.7 } }
-
+        // Legacy round counts above remain available when reading already completed v2 caches.
+        var qualityCandidates: Int { switch self { case .low: return 4; case .medium: return 6; case .high: return 8 } }
+        var desiredResults: Int { switch self { case .low: return 2; case .medium: return 3; case .high: return 4 } }
+        var minimumRounds: Int { switch self { case .low: return 3; case .medium: return 4; case .high: return 5 } }
+        var maximumRounds: Int { minimumRounds + 2 }
+        var measuredDownloadBytes: Int { switch self { case .low: return 768 * 1024; case .medium: return 1024 * 1024; case .high: return 1536 * 1024 } }
+        var downloadWarmupBytes: Int { 256 * 1024 }
+        var downloadBudgetMiB: Int { Int(ceil(Double(qualityCandidates * (measuredDownloadBytes + downloadWarmupBytes)) / 1024 / 1024)) }
     }
-    static let cacheDurations = [6, 12, 24, 48]
+    static let cacheDurations = [6, 12, 24, 48, 0]
+    static func cacheDurationLabel(_ hours: Int) -> String { hours == 0 ? "永不过期" : "\(hours) 小时" }
     var tunnelProtocol: WARPProtocol = .wg
     var theme: Theme = .system
+    var language: AppLanguage = AppLanguage.system.resolved
     var addressFamily: IPAddressFamily = .ipv4
     var mtu = 0
     var customDNS = ""
@@ -35,16 +44,54 @@ struct UserSettings: Codable, Equatable, Sendable {
     var strength: Strength = .medium
     var cacheHours = 6
     var probeTimeout = 5
+    var minimumDownloadMbps = 3.0
+    var downloadTestEnabled = true
+    var qualityProfile: ProbeQualityProfile { .init(strength: strength, downloadEnabled: downloadTestEnabled, minimumMbps: downloadTestEnabled ? minimumDownloadMbps : 0) }
+    // Bound payload time near a very low user-specified floor instead of timing out a valid slow link.
+    var measuredDownloadBytes: Int { min(strength.measuredDownloadBytes, max(64 * 1024, Int(minimumDownloadMbps * 1_000_000))) }
+    var downloadWarmupBytes: Int { min(strength.downloadWarmupBytes, max(16 * 1024, Int(minimumDownloadMbps * 250_000))) }
+
+    init() {}
+    enum CodingKeys: String, CodingKey {
+        case tunnelProtocol, theme, language, addressFamily, mtu, customDNS, dnsLeakProtection, doNotSetDNS, strength, cacheHours, probeTimeout, minimumDownloadMbps, downloadTestEnabled
+    }
+    init(from decoder: Decoder) throws {
+        self.init()
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        tunnelProtocol = try c.decodeIfPresent(WARPProtocol.self, forKey: .tunnelProtocol) ?? tunnelProtocol
+        theme = try c.decodeIfPresent(Theme.self, forKey: .theme) ?? theme
+        language = try c.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .system
+        addressFamily = try c.decodeIfPresent(IPAddressFamily.self, forKey: .addressFamily) ?? addressFamily
+        mtu = try c.decodeIfPresent(Int.self, forKey: .mtu) ?? mtu
+        customDNS = try c.decodeIfPresent(String.self, forKey: .customDNS) ?? customDNS
+        dnsLeakProtection = try c.decodeIfPresent(Bool.self, forKey: .dnsLeakProtection) ?? dnsLeakProtection
+        doNotSetDNS = try c.decodeIfPresent(Bool.self, forKey: .doNotSetDNS) ?? doNotSetDNS
+        strength = try c.decodeIfPresent(Strength.self, forKey: .strength) ?? strength
+        cacheHours = try c.decodeIfPresent(Int.self, forKey: .cacheHours) ?? cacheHours
+        probeTimeout = try c.decodeIfPresent(Int.self, forKey: .probeTimeout) ?? probeTimeout
+        minimumDownloadMbps = try c.decodeIfPresent(Double.self, forKey: .minimumDownloadMbps) ?? minimumDownloadMbps
+        downloadTestEnabled = try c.decodeIfPresent(Bool.self, forKey: .downloadTestEnabled) ?? downloadTestEnabled
+    }
     var effectiveMTU: Int { mtu == 0 ? 1280 : mtu }
-    var cacheLifetime: TimeInterval { TimeInterval(cacheHours * 3600) }
+    var cacheNeverExpires: Bool { cacheHours == 0 }
+    var cacheDurationLabel: String { cacheDurationText.source }
+    var cacheDurationText: LocalizedText { cacheHours == 0 ? "永不过期" : "\(cacheHours) 小时" }
+    var cacheLifetime: TimeInterval { cacheNeverExpires ? .infinity : TimeInterval(cacheHours * 3600) }
+    func cacheExpiry(from start: Date) -> Date { cacheNeverExpires ? .distantFuture : start.addingTimeInterval(cacheLifetime) }
+    func withCachePolicy(from latest: Self?) -> Self {
+        var value = self; value.cacheHours = latest?.cacheHours ?? cacheHours; return value
+    }
 
     func validated() throws -> Self {
         guard mtu == 0 || (1280...1500).contains(mtu) else { throw WARPError.message("MTU 请填写 0（自动），或 1280–1500 的整数。") }
-        guard Self.cacheDurations.contains(cacheHours) else { throw WARPError.message("请选择 6、12、24 或 48 小时缓存。") }
+        guard Self.cacheDurations.contains(cacheHours) else { throw WARPError.message("请选择 6、12、24、48 小时或永不过期。") }
         guard (1...30).contains(probeTimeout) else { throw WARPError.message("探测超时应为 1–30 秒。") }
+        guard minimumDownloadMbps.isFinite, (0.1...1000).contains(minimumDownloadMbps) else { throw WARPError.message("最小下载速度应为 0.1–1000 Mbps。") }
         guard !(doNotSetDNS && dnsLeakProtection) else { throw WARPError.message("保留系统 DNS 时无法同时启用 DNS 防泄漏。") }
         if !doNotSetDNS { _ = try dnsServers() }
-        return self
+        var value = self
+        value.language = language.resolved
+        return value
     }
 
     /// Transport syntax owned by the app; routing fragments cannot be supplied by user text.
@@ -77,8 +124,8 @@ struct UserSettings: Codable, Equatable, Sendable {
 
     /// Preference-only changes do not invalidate measured nodes or move their original timestamp.
     var measurementFingerprint: String {
-        let components = ["quality-v2", addressFamily.rawValue, String(effectiveMTU), doNotSetDNS ? "system-dns" : ((try? dnsServers().joined(separator: ",")) ?? customDNS),
-            String(dnsLeakProtection), String(doNotSetDNS), strength.rawValue, String(probeTimeout)]
+        let components = ["quality-v3", addressFamily.rawValue, String(effectiveMTU), doNotSetDNS ? "system-dns" : ((try? dnsServers().joined(separator: ",")) ?? customDNS),
+            String(dnsLeakProtection), String(doNotSetDNS), strength.rawValue, String(probeTimeout), String(downloadTestEnabled), String(qualityProfile.minimumMbps)]
         return SHA256.hash(data: Data(components.joined(separator: "|").utf8)).map { String(format: "%02x", $0) }.joined()
     }
     var supportsLegacyCache: Bool {
@@ -89,7 +136,10 @@ struct UserSettings: Codable, Equatable, Sendable {
         let directory = try root ?? WARPConfiguration.container()
         let url = directory.appendingPathComponent("settings.json")
         if FileManager.default.fileExists(atPath: url.path) {
-            return try JSONDecoder().decode(Self.self, from: Data(contentsOf: url)).validated()
+            let decoded = try JSONDecoder().decode(Self.self, from: Data(contentsOf: url))
+            let value = try decoded.validated()
+            if decoded.language == .system { try value.save(root: root) }
+            return value
         }
         var value = Self()
         let legacy = directory.appendingPathComponent("network-preferences.json")
@@ -97,11 +147,14 @@ struct UserSettings: Codable, Equatable, Sendable {
             value.addressFamily = preferences.addressFamily
         }
         if let raw = UserDefaults.standard.string(forKey: "selectedProtocol"), let kind = WARPProtocol(rawValue: raw) { value.tunnelProtocol = kind }
+        // Pin the initial system-language match once; later launches keep the user's choice.
+        try value.save(root: root)
         return value
     }
     func save(root: URL? = nil) throws {
         let validated = try validated()
         let directory = try root ?? WARPConfiguration.container()
         try JSONEncoder().encode(validated).write(to: directory.appendingPathComponent("settings.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        if root == nil { validated.language.persistSelection() }
     }
 }
