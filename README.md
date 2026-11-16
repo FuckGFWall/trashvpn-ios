@@ -29,7 +29,7 @@
 2. 安装完成后，点击 [TrashVPN TestFlight 邀请链接](https://testflight.apple.com/join/YBg8gqaQ)。
 3. 在 TestFlight 中接受邀请，然后点击“安装”。
 
-**注意：请先安装 TestFlight，再点击邀请链接。
+**注意：请先安装 TestFlight，再点击邀请链接**。
 
 ## 开发与构建
 
