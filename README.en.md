@@ -3,37 +3,35 @@
 </p>
 
 <h1 align="center">TrashVPN</h1>
-<p align="center"><a href="README.md">简体中文</a> · English</p>
+<p align="center"><a href="README.md">简体中文</a> · English · <a href="README.fa.md">فارسی</a></p>
 <p align="center">
-  <a href="https://testflight.apple.com/join/YBg8gqaQ">TestFlight Beta</a>
-  · <a href="https://github.com/FuckGFWall/trashvpn-ios">GitHub</a>
+  <a href="https://testflight.apple.com/join/YBg8gqaQ">Get it on TestFlight</a>
   · <a href="LICENSE">GPL-3.0</a>
 </p>
 
-**TrashVPN** is a third-party Cloudflare WARP client for Apple devices. Built with SwiftUI and a Mihomo-derived proxy engine, it supports automatic registration, endpoint discovery and optimization, and manual node selection.
+**TrashVPN** is a third-party Cloudflare WARP client for Apple devices. Built natively with SwiftUI and powered by the Mihomo kernel, it supports automatic registration, endpoint discovery and optimization, and node export.
 
-Supported platforms: **iOS 16+, iPadOS 16+, and Apple silicon Macs** (running the iPhone / iPad app).
+Supported platforms: **iOS 16+, iPadOS 16+, and Apple silicon Macs**.
 
 ## Features
 
-- **WARP protocols**: WireGuard (WG), AmneziaWG (AWG), and Cloudflare MASQUE (QUIC / HTTP/3).
-- **Automatic registration and endpoint selection**: prepares WARP identities and tests available endpoints.
-- **Optimization without starting the VPN**: endpoint discovery and quality tests run locally without first connecting the system VPN.
+- **Multiple WARP protocols**: WireGuard (WG), AmneziaWG (AWG), and MASQUE (HTTP/3).
+- **Automatic registration and endpoint optimization**: automatically prepares a WARP identity, discovers available endpoints, and tests them.
 - **IPv4 / IPv6**: choose the address family used to reach WARP endpoints.
-- **Node management and export**: automatic or manual node selection, caching, and multiple configuration export formats.
-- **Multilingual UI**: Simplified Chinese, Traditional Chinese, English, and Persian.
+- **Node management and export**: automatically selects the lowest-latency node, supports manual latency and speed tests, and exports node configurations in multiple formats.
+- **Multilingual support**: Simplified Chinese, Traditional Chinese, English, and Persian.
 
 ## Installation
 
-TrashVPN is currently distributed through **TestFlight**.
+TrashVPN is currently available through **TestFlight**.
 
-1. On your iPhone, iPad, or Apple silicon Mac, install [TestFlight from the App Store](https://apps.apple.com/app/testflight/id899247664).
+1. On your iPhone, iPad, or Apple silicon Mac, download [TestFlight from the App Store](https://apps.apple.com/app/testflight/id899247664).
 2. After installing TestFlight, open the [TrashVPN TestFlight invitation](https://testflight.apple.com/join/YBg8gqaQ).
-3. Accept the invitation in TestFlight and tap **Install**.
+3. Accept the invitation in TestFlight, then tap **Install**.
 
-**Important: Install TestFlight before opening the invitation link.** If TestFlight is not installed, the invitation page will ask you to download it first.
+**Important: Install TestFlight before opening the invitation link.**
 
-## Development
+## Development and Build
 
 ### Requirements
 
@@ -62,14 +60,14 @@ xcodebuild -project TrashVPN.xcodeproj -scheme TrashVPN \
 
 You can also open `TrashVPN.xcodeproj` in Xcode and run it on a selected device.
 
-## Technology
+## Technology Stack
 
-- **App**: Swift, SwiftUI
-- **Proxy engine**: Mihomo-derived Apple SDK from ProjectClash
+- **App UI**: Swift, SwiftUI
+- **Proxy engine**: Mihomo-derived Apple SDK provided by ProjectClash
 - **System integration**: Apple Network Extension (Packet Tunnel)
 - **Project generation**: XcodeGen
 
-The integrated SDK version is `v1.19.33-clash.4`. See [Dependencies.lock.json](Dependencies.lock.json) for the pinned version and checksum.
+The integrated kernel version is `v1.19.33-clash.4`. See [Dependencies.lock.json](Dependencies.lock.json) for the version and checksum.
 
 ## Acknowledgements
 
@@ -94,5 +92,3 @@ The project also includes the Mihomo kernel and other third-party components. Th
 - [Vendor/NOTICE](Vendor/NOTICE)
 - [Vendor/THIRD_PARTY_LICENSES.md](Vendor/THIRD_PARTY_LICENSES.md)
 - [Vendor/ClashAdapter/LICENSE](Vendor/ClashAdapter/LICENSE)
-
-Please comply with GPL-3.0 and the applicable licenses of all bundled dependencies when redistributing or modifying this project.
