@@ -5,33 +5,31 @@
 <h1 align="center">TrashVPN</h1>
 <p align="center">简体中文 · <a href="README.en.md">English</a></p>
 <p align="center">
-  <a href="https://testflight.apple.com/join/YBg8gqaQ">TestFlight 测试版</a>
-  · <a href="https://github.com/FuckGFWall/trashvpn-ios">GitHub</a>
+  <a href="https://testflight.apple.com/join/YBg8gqaQ">TestFlight 下载</a>
   · <a href="LICENSE">GPL-3.0</a>
 </p>
 
-**TrashVPN** 是一款面向 Apple 设备的第三方 Cloudflare WARP 客户端，使用 SwiftUI 和 Mihomo 衍生内核，支持自动注册、节点筛选与优选，以及手动选择节点。
+**TrashVPN** 是一款面向 Apple 设备的第三方 Cloudflare WARP 客户端，用 SwiftUI 原生开发，使用 Mihomo 内核，支持自动注册、节点筛选与优选，以及节点导出。
 
-支持 **iOS 16+、iPadOS 16+**，以及 **Apple Silicon Mac**（以 iPhone / iPad 兼容应用方式运行）。
+支持 **iOS 16+、iPadOS 16+**，以及 **Apple Silicon Mac**。
 
 ## 功能
 
-- **多种 WARP 协议**：WireGuard（WG）、AmneziaWG（AWG）和 Cloudflare MASQUE（QUIC / HTTP/3）。
+- **多种 WARP 协议**：WireGuard（WG）、AmneziaWG（AWG）和 MASQUE（HTTP/3）。
 - **自动注册与节点优选**：自动准备 WARP 身份，筛选并测试可用端点。
-- **无需启动 VPN 即可优选**：节点筛选和质量测试在本地完成，不需要先连接系统 VPN。
 - **IPv4 / IPv6**：支持选择 WARP 入口地址族。
-- **节点管理与导出**：支持自动选择、手动切换、缓存，以及多种节点配置格式导出。
-- **多语言界面**：简体中文、繁體中文、English 和 فارسی。
+- **节点管理与导出**：支持自动选择最低延迟节点，手动测试延迟和速度，以及多种节点配置格式导出。
+- **多语言支持**：简体中文、繁體中文、English 和 فارسی。
 
 ## 安装
 
-目前通过 **TestFlight** 提供测试版本。
+目前通过 **TestFlight** 提供。
 
 1. 在 iPhone、iPad 或 Apple Silicon Mac 上，从 [App Store 下载 TestFlight](https://apps.apple.com/app/testflight/id899247664)。
-2. 安装完成后，打开 [TrashVPN TestFlight 邀请链接](https://testflight.apple.com/join/YBg8gqaQ)。
+2. 安装完成后，点击 [TrashVPN TestFlight 邀请链接](https://testflight.apple.com/join/YBg8gqaQ)。
 3. 在 TestFlight 中接受邀请，然后点击“安装”。
 
-**注意：请先安装 TestFlight，再打开邀请链接。** 如果尚未安装 TestFlight，邀请链接会提示你先下载该应用。
+**注意：请先安装 TestFlight，再点击邀请链接。
 
 ## 开发与构建
 
@@ -94,5 +92,3 @@ xcodebuild -project TrashVPN.xcodeproj -scheme TrashVPN \
 - [Vendor/NOTICE](Vendor/NOTICE)
 - [Vendor/THIRD_PARTY_LICENSES.md](Vendor/THIRD_PARTY_LICENSES.md)
 - [Vendor/ClashAdapter/LICENSE](Vendor/ClashAdapter/LICENSE)
-
-分发或修改项目时，请遵守 GPL-3.0 及各依赖组件适用的许可证要求。
