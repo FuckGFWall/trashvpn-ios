@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">TrashVPN</h1>
-<p align="center">简体中文 · <a href="README.en.md">English</a></p>
+<p align="center">简体中文 · <a href="README.en.md">English</a> · <a href="README.fa.md">فارسی</a></p>
 <p align="center">
   <a href="https://testflight.apple.com/join/YBg8gqaQ">TestFlight 下载</a>
   · <a href="LICENSE">GPL-3.0</a>
