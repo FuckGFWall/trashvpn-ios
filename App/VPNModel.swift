@@ -79,7 +79,7 @@ final class VPNModel: ObservableObject {
         return "缓存有效至 " + cache.expiry(settings: cacheValidationSettings).formatted(date: .abbreviated, time: .shortened) + " · \(addressFamily.label)"
     }
     var versionLabel: String {
-        "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "1.0.0") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))"
+        "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "1.0.1") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))"
     }
     var statusLabel: String {
         if authorizingVPN && !active { return "正在连接" }

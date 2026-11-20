@@ -3,19 +3,51 @@
 
 # Xcode build products and per-user settings
 /build/
-/build-ios16/
+/build-*/
+/.build/
 /DerivedData/
-/TestResults/
-*.xcresult
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xctestrun
+*.xcactivitylog
+*.xcscmblueprint
 *.xcuserstate
 xcuserdata/
 *.xccheckout
 *.moved-aside
-*.log
 
 # Local agent instructions and development validation artifacts
 AGENTS.md
 /Docs/
+/TestResults*/
+/TestArtifacts/
+/TestReports/
+/Artifacts/
+[Ss]creenshots/
+[Rr]ecordings/
+[Ll]ogs/
+*.xcresult
+*.log
+*.log.*
+*.trace
+*.crash
+*.ips
+*.xccrashpoint
+*.profraw
+*.profdata
+*.xccovreport
+*.xccovarchive
+
+# Local device inventories, diagnostics, and machine-specific test settings
+/Devices/
+/DeviceInfo/
+/DeviceLogs/
+/Diagnostics/
+*.local.xcconfig
+*.local.xctestplan
+*.local.xctestrun
 
 # Local signing credentials and configuration
 /LocalSecrets/
