@@ -57,10 +57,10 @@ final class InstalledUpgradeEnvironment: LegacyUpgradeEnvironment {
             profile.isOnDemandEnabled = false; profile.onDemandRules = nil; profile.isEnabled = false
             try await profile.saveToPreferences()
             profile.connection.stopVPNTunnel()
-            let deadline = ContinuousClock.now.advanced(by: .seconds(20))
+            let deadline = ProcessInfo.processInfo.systemUptime + 20
             while [.connecting, .connected, .reasserting, .disconnecting].contains(profile.connection.status) {
-                guard ContinuousClock.now < deadline else { throw UpgradeResetError.vpnStillRunning }
-                try await Task.sleep(for: .milliseconds(100))
+                guard ProcessInfo.processInfo.systemUptime < deadline else { throw UpgradeResetError.vpnStillRunning }
+                try await Task.sleep(nanoseconds: 100_000_000)
             }
             try await profile.removeFromPreferences()
         }

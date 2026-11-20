@@ -26,16 +26,19 @@ final class SettingsTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
     }
 
-    func testSettingsValidationAndFortyEightHourOption() throws {
-        XCTAssertEqual(UserSettings.cacheDurations, [6, 12, 24, 48, 0])
+    func testSettingsValidationAndCacheDayRange() throws {
         var value = UserSettings()
         for mtu in [0, 1280, 1400, 1500] { value.mtu = mtu; XCTAssertNoThrow(try value.validated()) }
         for mtu in [-1, 1279, 1501] { value.mtu = mtu; XCTAssertThrowsError(try value.validated()) }
         value.mtu = 0
         for timeout in [1, 7, 30] { value.probeTimeout = timeout; XCTAssertNoThrow(try value.validated()) }
         value.probeTimeout = 31; XCTAssertThrowsError(try value.validated())
-        value.probeTimeout = 5; value.cacheHours = 46; XCTAssertThrowsError(try value.validated())
-        value.cacheHours = 48; XCTAssertNoThrow(try value.validated())
+        value.probeTimeout = 5
+        for days in [0, -1, Int.max] {
+            value.cacheDays = days
+            XCTAssertThrowsError(try value.validated())
+        }
+        value.cacheDays = 18; XCTAssertNoThrow(try value.validated())
         value.doNotSetDNS = true; XCTAssertThrowsError(try value.validated())
     }
 
@@ -54,7 +57,8 @@ final class SettingsTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         try JSONEncoder().encode(NetworkPreferences(addressFamily: .ipv6)).write(to: root.appendingPathComponent("network-preferences.json"))
         XCTAssertEqual(try UserSettings.load(root: root).addressFamily, .ipv6)
-        var value = UserSettings(); value.theme = .dark; value.cacheHours = 48; value.mtu = 1400; value.probeTimeout = 7
+        var value = UserSettings(); value.theme = .dark; value.cacheDays = 2; value.mtu = 1400; value.probeTimeout = 7
+        value.autoConnectAfterOptimization = true
         try value.save(root: root)
         XCTAssertEqual(try UserSettings.load(root: root), value)
     }
@@ -62,17 +66,44 @@ final class SettingsTests: XCTestCase {
     func testCacheTTLUsesOriginalCompletionTimeAndCanBeShortened() throws {
         let initial = UserSettings()
         let saved = try cache(settings: initial)
-        var extended = initial; extended.cacheHours = 48
-        XCTAssertTrue(saved.isValid(for: account(), now: now.addingTimeInterval(47 * 3600), settings: extended))
-        XCTAssertFalse(saved.isValid(for: account(), now: now.addingTimeInterval(48 * 3600), settings: extended))
-        XCTAssertEqual(saved.expiry(settings: extended), now.addingTimeInterval(48 * 3600))
-        XCTAssertEqual(saved.createdAt, now); XCTAssertEqual(saved.expiresAt, now.addingTimeInterval(6 * 3600))
-        XCTAssertFalse(saved.isValid(for: account(), now: now.addingTimeInterval(7 * 3600), settings: initial))
+        var extended = initial; extended.cacheDays = 12
+        XCTAssertTrue(saved.isValid(for: account(), now: now.addingTimeInterval(12 * 86_400 - 1), settings: extended))
+        XCTAssertFalse(saved.isValid(for: account(), now: now.addingTimeInterval(12 * 86_400), settings: extended))
+        XCTAssertEqual(saved.expiry(settings: extended), now.addingTimeInterval(12 * 86_400))
+        XCTAssertEqual(saved.createdAt, now); XCTAssertEqual(saved.expiresAt, now.addingTimeInterval(7 * 86_400))
+        XCTAssertFalse(saved.isValid(for: account(), now: now.addingTimeInterval(7 * 86_400), settings: initial))
+    }
+
+    func testLegacyCacheSettingsAndStoredExpiryMigrateWithoutLosingNodes() throws {
+        for (hours, days) in [(0, 7), (6, 7), (12, 1), (24, 1), (48, 2)] {
+            let data = Data("{\"cacheHours\":\(hours)}".utf8)
+            let restored = try JSONDecoder().decode(UserSettings.self, from: data)
+            XCTAssertEqual(restored.cacheDays, days)
+            XCTAssertEqual(restored.cacheNeverExpires, hours == 0)
+        }
+        var settings = UserSettings()
+        XCTAssertFalse(settings.autoConnectAfterOptimization)
+        XCTAssertFalse(try JSONDecoder().decode(UserSettings.self, from: Data("{}".utf8)).autoConnectAfterOptimization)
+        XCTAssertEqual(settings.cacheDays, 7)
+        XCTAssertFalse(settings.cacheNeverExpires)
+        XCTAssertEqual(settings.cacheLifetime, 7 * 86_400)
+        settings.cacheDays = 13
+        settings.cacheNeverExpires = true
+        var restored = try JSONDecoder().decode(UserSettings.self, from: JSONEncoder().encode(settings))
+        restored.cacheNeverExpires = false
+        XCTAssertEqual(restored.cacheLifetime, 13 * 86_400)
+
+        let saved = try cache(settings: restored)
+        var old = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(saved)) as? [String: Any])
+        old["expiresAt"] = now.addingTimeInterval(6 * 3600).timeIntervalSinceReferenceDate
+        let legacy = try JSONDecoder().decode(NodeCache.self, from: JSONSerialization.data(withJSONObject: old))
+        XCTAssertTrue(legacy.isValid(for: account(), now: now.addingTimeInterval(86_400), settings: restored))
+        XCTAssertFalse(legacy.isValid(for: account(), now: now.addingTimeInterval(13 * 86_400), settings: restored))
     }
 
     func testThemeAndTTLDoNotInvalidateMeasurementsButNetworkChangesDo() throws {
         let initial = UserSettings(); let saved = try cache(settings: initial)
-        var value = initial; value.theme = .dark; value.cacheHours = 24
+        var value = initial; value.theme = .dark; value.cacheDays = 1; value.autoConnectAfterOptimization = true
         XCTAssertTrue(saved.isValid(for: account(), now: now, settings: value))
         value = initial; value.mtu = 1400; XCTAssertFalse(saved.isValid(for: account(), now: now, settings: value))
         value = initial; value.probeTimeout = 7; XCTAssertFalse(saved.isValid(for: account(), now: now, settings: value))

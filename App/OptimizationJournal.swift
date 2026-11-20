@@ -27,7 +27,37 @@ actor OptimizationJournal {
             await progress(.progress(value.progress))
         } else { await progress(update) }
     }
-    func screen(_ result: ProbeResult) throws { value.screening[result.endpoint.id] = result; try save() }
+    func beginSupplement() throws -> OptimizationCheckpoint {
+        value.candidates = EndpointCatalog.supplementalCandidates(for: value.candidates)
+        value.screening = [:]
+        value.supplementalScreening = true
+        try save()
+        return value
+    }
+
+    func screen(_ result: ProbeResult, at index: Int, followupLimit: Int) throws -> OptimizationCheckpoint {
+        let node = result.endpoint
+        if result.median != nil, node.kind != .masque, EndpointCatalog.alternatePorts.contains(node.port),
+           !value.screening.values.contains(where: { $0.endpoint.port == node.port && $0.median != nil }) {
+            // Try the working port on other WARP hosts. Keep the measured prefix and the
+            // total budget intact; commit the revised order together with the first hit.
+            let prefix = value.candidates.prefix(index + 1)
+            let remaining = value.candidates.dropFirst(index + 1)
+            var used = Set(prefix.map(\.id)).union(value.screening.keys)
+            var followups: [WARPEndpoint] = []
+            for candidate in remaining {
+                let next = WARPEndpoint(host: candidate.host, port: node.port, kind: node.kind)
+                if used.insert(next.id).inserted { followups.append(next) }
+                if followups.count == followupLimit { break }
+            }
+            let promoted = Set(followups.map(\.id))
+            let reordered = followups + remaining.filter { !promoted.contains($0.id) }
+            value.candidates = Array(prefix) + reordered.prefix(remaining.count)
+        }
+        value.screening[node.id] = result
+        try save()
+        return value
+    }
     func shortlist(_ endpoints: [WARPEndpoint]) throws { value.finalists = endpoints; try save() }
     func sample(_ result: ProbeResult) throws { value.partial = result; try save() }
     func finish(_ result: ProbeResult) throws { value.completed.append(result); value.partial = nil; try save() }

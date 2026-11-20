@@ -67,6 +67,7 @@ enum WARPConfiguration {
     static let group = "group.com.leo.TrashVPN"
     static let providerID = "com.leo.TrashVPN.PacketTunnel"
     static let testURL = "https://cp.cloudflare.com/generate_204"
+    static let literalTraceURL = "https://1.1.1.1/cdn-cgi/trace"
     static let peerKey = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
     static let masquePeerPEM = """
     -----BEGIN PUBLIC KEY-----

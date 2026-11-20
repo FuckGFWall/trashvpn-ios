@@ -10,7 +10,7 @@
 "%1$@ 无法完整导出为 %2$@。" = "%1$@ cannot be fully exported as %2$@.";
 "%1$@ 暂无有效缓存，正在断开 VPN，随后注册和优选" = "No valid %1$@ cache. Disconnecting VPN, then registering and optimizing.";
 "%1$@完成，VPN 保持连接" = "%1$@ complete; VPN stays connected";
-"%1$@强度：最多检查 %2$@ 个候选，入围最多 %3$@ 个节点；稳定性检查 %4$@ 次，异常时最多补测到 %5$@ 次。取得 %6$@ 个合格节点即结束，自动选择其中延迟最低的节点。" = "%1$@ level: check up to %2$@ candidates and shortlist up to %3$@ nodes. Check stability %4$@ times, up to %5$@ if needed. Stop after finding %6$@ qualified nodes and automatically select the one with the lowest latency.";
+"%1$@强度：每轮最多检查 %2$@ 个候选，入围最多 %3$@ 个节点；稳定性检查 %4$@ 次，异常时最多补测到 %5$@ 次。取得 %6$@ 个合格节点即结束，自动选择其中延迟最低的节点。" = "%1$@ level: check up to %2$@ candidates per pass and shortlist up to %3$@ nodes. Check stability %4$@ times, up to %5$@ if needed. Stop after finding %6$@ qualified nodes and automatically select the one with the lowest latency.";
 "%1$@第 %2$@ 次（最多 %3$@ 次） · %4$@，达标即结束" = "%1$@ %2$@ of up to %3$@ · %4$@; stop when qualified";
 "Clash YAML 节点配置块，合并到现有配置使用。" = "Clash YAML nodes to merge into an existing configuration.";
 "Clash YAML 节点配置块，合并到现有配置使用；MASQUE 需要兼容 ProjectClash 的内核。" = "Clash YAML nodes to merge into an existing configuration. MASQUE requires a ProjectClash-compatible core.";
@@ -263,3 +263,18 @@
 "数据中心: %1$@" = "Data center: %1$@";
 
 "清理旧版数据失败，请重新打开应用重试。" = "Could not finish clearing old app data. Reopen the app to retry.";
+"设置为 0 则使用自动 MTU。" = "Set to 0 to use automatic MTU.";
+"缓存永不过期" = "Cache never expires";
+"有效期" = "Validity";
+"天" = "days";
+"1 天" = "1 day";
+"%1$@ 天" = "%1$@ days";
+"缓存有效期请输入 1 至 36500 天的整数。" = "Enter a whole number of days from 1 to 36,500.";
+"通过备用网址复测" = "Retrying with an alternate URL";
+"通过备用网址探测候选端口" = "Testing candidate ports with an alternate URL";
+"缓存" = "Cache";
+"优选完成后自动连接" = "Connect automatically after optimization";
+"共享" = "Share";
+"复制到剪贴板" = "Copy to Clipboard";
+"导出为文件" = "Export as File";
+"导出诊断失败" = "Couldn’t Export Diagnostics";

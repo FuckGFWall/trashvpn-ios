@@ -52,6 +52,7 @@ struct FailingOptimizer: NodeOptimizing {
 
 final class NodePreparationTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_790_000_000)
+    private let defaultTTL: TimeInterval = 7 * 86_400
     private let accounts = MemoryAccounts()
     private let caches = MemoryCaches()
     private let registration = MockRegistration()
@@ -67,18 +68,18 @@ final class NodePreparationTests: XCTestCase {
         let reopened = try await service(at: start.addingTimeInterval(7200)).prepare(kind: .wg) { _ in }
         XCTAssertTrue(reopened.reusedCache)
         XCTAssertEqual(first.cache, reopened.cache)
-        XCTAssertEqual(first.cache.expiresAt, start.addingTimeInterval(21600))
+        XCTAssertEqual(first.cache.expiresAt, start.addingTimeInterval(defaultTTL))
         let registrations = await registration.registrations; let scans = await optimizer.calls
         XCTAssertEqual(registrations, 1); XCTAssertEqual(scans, 1)
     }
 
-    func testExactSixHourBoundaryRescansWithoutReregistering() async throws {
+    func testExactSevenDayBoundaryRescansWithoutReregistering() async throws {
         _ = try await service(at: start).prepare(kind: .awg) { _ in }
-        let fresh = try await service(at: start.addingTimeInterval(21599)).prepare(kind: .awg) { _ in }
+        let fresh = try await service(at: start.addingTimeInterval(defaultTTL - 1)).prepare(kind: .awg) { _ in }
         XCTAssertTrue(fresh.reusedCache)
-        let expired = try await service(at: start.addingTimeInterval(21600)).prepare(kind: .awg) { _ in }
+        let expired = try await service(at: start.addingTimeInterval(defaultTTL)).prepare(kind: .awg) { _ in }
         XCTAssertFalse(expired.reusedCache)
-        XCTAssertEqual(expired.cache.expiresAt, start.addingTimeInterval(43200))
+        XCTAssertEqual(expired.cache.expiresAt, start.addingTimeInterval(2 * defaultTTL))
         let registrations = await registration.registrations; let scans = await optimizer.calls
         XCTAssertEqual(registrations, 1); XCTAssertEqual(scans, 2)
     }
@@ -110,7 +111,7 @@ final class NodePreparationTests: XCTestCase {
         let first = try await service(at: start).prepare(kind: .wg) { _ in }
         let identity = try accounts.load(.wg)
         do {
-            _ = try await service(at: start.addingTimeInterval(21600), optimizer: FailingOptimizer(cancelled: false)).prepare(kind: .wg) { _ in }
+            _ = try await service(at: start.addingTimeInterval(defaultTTL), optimizer: FailingOptimizer(cancelled: false)).prepare(kind: .wg) { _ in }
             XCTFail("refresh should fail")
         } catch {}
         XCTAssertEqual(try caches.load(.wg), first.cache)
@@ -133,7 +134,7 @@ final class NodePreparationTests: XCTestCase {
         XCTAssertThrowsError(try NodeCache(account: account, results: [partial], now: start))
         let cache = try XCTUnwrap(caches.load(.wg))
         XCTAssertFalse(cache.isValid(for: account, now: start.addingTimeInterval(-1)))
-        XCTAssertFalse(cache.isValid(for: account, now: start.addingTimeInterval(21600)))
+        XCTAssertFalse(cache.isValid(for: account, now: start.addingTimeInterval(defaultTTL)))
     }
 
     func testAtomicFileCacheSurvivesRelaunchAndCorruptionIsReplaceable() async throws {

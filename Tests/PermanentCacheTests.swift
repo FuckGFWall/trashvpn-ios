@@ -4,7 +4,7 @@ import XCTest
 
 final class PermanentCacheTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_790_000_000)
-    private var forever: UserSettings { var settings = UserSettings(); settings.cacheHours = 0; return settings }
+    private var forever: UserSettings { var settings = UserSettings(); settings.cacheNeverExpires = true; return settings }
 
     func testNeverExpirationIsPersistedWithoutNonfiniteJSONNumbers() async throws {
         let accounts = MemoryAccounts(); let caches = MemoryCaches()
@@ -49,8 +49,8 @@ final class PermanentCacheTests: XCTestCase {
         let saved = try await NodePreparation(accounts: accounts, caches: caches, registration: MockRegistration(),
             optimizer: MockOptimizer(), settings: forever, now: { self.start }).prepare(kind: .wg) { _ in }.cache
         let identity = try XCTUnwrap(accounts.load(.wg)); let timed = UserSettings()
-        XCTAssertTrue(saved.isValid(for: identity, now: start.addingTimeInterval(21599), settings: timed))
-        XCTAssertFalse(saved.isValid(for: identity, now: start.addingTimeInterval(21600), settings: timed))
+        XCTAssertTrue(saved.isValid(for: identity, now: start.addingTimeInterval(timed.cacheLifetime - 1), settings: timed))
+        XCTAssertFalse(saved.isValid(for: identity, now: start.addingTimeInterval(timed.cacheLifetime), settings: timed))
         var changed = identity; changed.id = "another-device"
         XCTAssertFalse(saved.isValid(for: changed, now: start, settings: forever))
         XCTAssertFalse(saved.isValid(for: identity, now: start, family: .ipv6, settings: forever))
@@ -91,9 +91,10 @@ final class PermanentCacheTests: XCTestCase {
 
     func testRunningTunnelAdoptsLatestCachePolicyWithoutChangingItsNetworkSnapshot() {
         var running = UserSettings(); running.mtu = 1280; running.customDNS = "1.1.1.1"
-        var latest = forever; latest.mtu = 1400; latest.customDNS = "8.8.8.8"; latest.strength = .high
+        var latest = forever; latest.cacheDays = 18; latest.mtu = 1400; latest.customDNS = "8.8.8.8"; latest.strength = .high
         let policy = running.withCachePolicy(from: latest)
         XCTAssertTrue(policy.cacheNeverExpires)
+        XCTAssertEqual(policy.cacheDays, 18)
         XCTAssertEqual(policy.mtu, running.mtu)
         XCTAssertEqual(policy.customDNS, running.customDNS)
         XCTAssertEqual(policy.strength, running.strength)

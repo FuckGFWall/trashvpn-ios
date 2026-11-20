@@ -9,7 +9,8 @@ struct OptimizationCheckpoint: Codable, Equatable, Sendable {
     let accountFingerprint: String
     let measurementFingerprint: String
     let startedAt: Date
-    let candidates: [WARPEndpoint]
+    var candidates: [WARPEndpoint]
+    var supplementalScreening: Bool?
     var screening: [String: ProbeResult] = [:]
     var finalists: [WARPEndpoint]?
     var completed: [ProbeResult] = []

@@ -70,6 +70,13 @@ struct TunnelSwitchRequest: Codable, Sendable {
     let expectedRevision: Int
     let endpoint: WARPEndpoint
     let automatic: Bool
+    var measurementCacheCreatedAt: Date? = nil
+
+    func usesMeasurementCache(_ cache: NodeCache, runningCache: NodeCache?, account: WARPAccount, current: ActiveTunnelState) -> Bool {
+        // A live measurement may recheck expired nodes from the cache used by this tunnel.
+        measurementCacheCreatedAt == cache.createdAt && runningCache == cache
+            && endpoint.kind == current.endpoint.kind && cache.canExport(for: account, family: current.settings.addressFamily)
+    }
     func isConfirmed(by state: ActiveTunnelState) -> Bool {
         state.sessionID == sessionID && state.lastRequestID == id && state.revision > expectedRevision
             && state.endpoint == endpoint && state.automatic == automatic

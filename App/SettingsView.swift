@@ -1,15 +1,17 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @ObservedObject var model: VPNModel
-    @Environment(\.dismiss) private var dismiss
-    private enum InputField: Hashable, CaseIterable { case mtu, timeout, minimumSpeed, dns }
+    private enum InputField: Hashable, CaseIterable { case mtu, cacheDays, timeout, minimumSpeed, dns }
     @FocusState private var focusedField: InputField?
     @State private var previousFocusedField: InputField?
     @State private var customDNS: String
+    @ScaledMetric(relativeTo: .caption) private var legacyDNSHeight: CGFloat = 76
     @State private var inputErrors: [InputField: String] = [:]
     @State private var mtu: String
+    @State private var cacheDays: String
     @State private var timeout: String
     @State private var minimumSpeed: String
     @State private var strengthPosition: Double
@@ -27,6 +29,7 @@ struct SettingsView: View {
         _strengthPosition = State(initialValue: Double(UserSettings.Strength.allCases.firstIndex(of: model.settings.strength) ?? 1))
         _customDNS = State(initialValue: model.settings.customDNS)
         _mtu = State(initialValue: String(model.settings.mtu))
+        _cacheDays = State(initialValue: String(model.settings.cacheDays))
         _timeout = State(initialValue: String(model.settings.probeTimeout))
         _minimumSpeed = State(initialValue: model.settings.minimumDownloadMbps.formatted(.number.grouping(.never)))
     }
@@ -34,9 +37,11 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker(t("隧道协议"), selection: setting(\.tunnelProtocol)) {
-                    ForEach(WARPProtocol.allCases) { Text(t(LocalizedText($0.label))).lineLimit(1).fixedSize(horizontal: true, vertical: false).tag($0) }
-                }.pickerStyle(.menu).disabled(model.switching || model.active && !model.connected).accessibilityIdentifier("protocolPicker")
+                choiceMenu("隧道协议", choices: WARPProtocol.allCases, selection: setting(\.tunnelProtocol)) {
+                    t(LocalizedText($0.label))
+                }
+                .disabled(model.switching || model.active && !model.connected)
+                .accessibilityIdentifier("protocolPicker")
             } header: { Label(t("连接协议"), systemImage: "lock.shield") }
             Section {
                 Menu {
@@ -59,40 +64,6 @@ struct SettingsView: View {
                     .accessibilityIdentifier("languagePicker")
                     .accessibilityLabel(t("语言") + ", " + languageName(model.settings.language))
             } header: { Label(t("外观"), systemImage: "paintpalette") }
-            Section {
-                Picker(t("地址族"), selection: setting(\.addressFamily)) {
-                    ForEach(IPAddressFamily.allCases) { Text(t(LocalizedText($0.label))).lineLimit(1).fixedSize(horizontal: true, vertical: false).tag($0) }
-                }.pickerStyle(.menu).accessibilityIdentifier("addressFamilyPicker")
-                HStack {
-                    Text(t("MTU"))
-                    Spacer()
-                    TextField("0", text: $mtu).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 100).focused($focusedField, equals: .mtu).accessibilityIdentifier("mtuField")
-                }
-                inputError(.mtu)
-            } header: { Label(t("网络"), systemImage: "network") }
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(t("自定义 DNS")).font(.subheadline)
-                    TextField(t("留空使用默认 DNS 1.1.1.1"), text: $customDNS, axis: .vertical)
-                        .font(.system(.caption, design: .monospaced)).lineLimit(1...4)
-                        .autocorrectionDisabled().textInputAutocapitalization(.never)
-                        .focused($focusedField, equals: .dns).accessibilityIdentifier("customDNSField")
-                        .environment(\.layoutDirection, .leftToRight)
-                }.disabled(model.settings.doNotSetDNS).opacity(model.settings.doNotSetDNS ? 0.45 : 1)
-                inputError(.dns)
-                Toggle(t("DNS 防泄漏"), isOn: Binding(get: { model.settings.dnsLeakProtection }, set: { enabled in
-                    var value = model.settings
-                    value.dnsLeakProtection = enabled; if enabled { value.doNotSetDNS = false }
-                    apply(value)
-                })).accessibilityIdentifier("dnsLeakSwitch")
-                Toggle(t("不向隧道下发 DNS"), isOn: Binding(get: { model.settings.doNotSetDNS }, set: { enabled in
-                    var value = model.settings
-                    value.doNotSetDNS = enabled; if enabled { value.dnsLeakProtection = false }
-                    apply(value)
-                })).accessibilityIdentifier("noDNSSwitch")
-            } header: { Label(t("DNS"), systemImage: "server.rack") } footer: {
-                Text(t("每行一个 DNS，最多 8 个；支持 IP、IP:端口、DoH、DoT、DoQ。"))
-            }
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -124,21 +95,16 @@ struct SettingsView: View {
                         }
                     }.accessibilityHidden(true)
                 }.padding(.vertical, 4)
-                Menu {
-                    ForEach(UserSettings.cacheDurations, id: \.self) { hours in
-                        Button { setting(\.cacheHours).wrappedValue = hours } label: {
-                            if hours == model.settings.cacheHours { Label(t(hours == 0 ? "永不过期" : "\(hours) 小时"), systemImage: "checkmark") }
-                            else { Text(t(hours == 0 ? "永不过期" : "\(hours) 小时")) }
-                        }
-                    }
-                } label: { menuLabel("缓存有效期", value: t(model.settings.cacheDurationText)) }
-                    .accessibilityIdentifier("cacheHoursPicker")
+                Toggle(t("优选完成后自动连接"), isOn: setting(\.autoConnectAfterOptimization))
+                    .accessibilityIdentifier("autoConnectAfterOptimizationSwitch")
                 HStack {
                     Text(t("探测超时"))
                     Spacer()
                     TextField("5", text: $timeout).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 70).focused($focusedField, equals: .timeout).accessibilityIdentifier("timeoutField")
                     Text(t("秒")).foregroundStyle(.secondary)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = .timeout }
                 inputError(.timeout)
                 Toggle(t("下载测速"), isOn: setting(\.downloadTestEnabled)).accessibilityIdentifier("downloadTestSwitch")
                 HStack {
@@ -147,18 +113,82 @@ struct SettingsView: View {
                     TextField("3", text: $minimumSpeed).keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
                         .focused($focusedField, equals: .minimumSpeed).accessibilityIdentifier("minimumDownloadSpeedField")
                     Text("Mbps").foregroundStyle(.secondary)
-                }.disabled(!model.settings.downloadTestEnabled).opacity(model.settings.downloadTestEnabled ? 1 : 0.45)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = .minimumSpeed }
+                .disabled(!model.settings.downloadTestEnabled).opacity(model.settings.downloadTestEnabled ? 1 : 0.45)
                 inputError(.minimumSpeed)
             } header: { Label(t("优选"), systemImage: "sparkles") } footer: {
-                Text(t("\(model.settings.strength.label)强度：最多检查 \(model.settings.strength.candidates) 个候选，入围最多 \(model.settings.strength.qualityCandidates) 个节点；稳定性检查 \(model.settings.strength.minimumRounds) 次，异常时最多补测到 \(model.settings.strength.maximumRounds) 次。取得 \(model.settings.strength.desiredResults) 个合格节点即结束，自动选择其中延迟最低的节点。"))
+                Text(t("\(model.settings.strength.label)强度：每轮最多检查 \(model.settings.strength.candidates) 个候选，入围最多 \(model.settings.strength.qualityCandidates) 个节点；稳定性检查 \(model.settings.strength.minimumRounds) 次，异常时最多补测到 \(model.settings.strength.maximumRounds) 次。取得 \(model.settings.strength.desiredResults) 个合格节点即结束，自动选择其中延迟最低的节点。"))
+            }
+            Section {
+                Toggle(t("缓存永不过期"), isOn: setting(\.cacheNeverExpires))
+                    .accessibilityIdentifier("cacheNeverExpiresSwitch")
+                HStack {
+                    Text(t("有效期"))
+                    Spacer()
+                    TextField(String(UserSettings.defaultCacheDays), text: $cacheDays)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                        .focused($focusedField, equals: .cacheDays)
+                        .accessibilityLabel(t("有效期"))
+                        .accessibilityIdentifier("cacheDaysField")
+                    Text(t("天")).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = .cacheDays }
+                .disabled(model.settings.cacheNeverExpires)
+                .opacity(model.settings.cacheNeverExpires ? 0.45 : 1)
+                inputError(.cacheDays)
+            } header: { Label(t("缓存"), systemImage: "internaldrive") }
+            Section {
+                choiceMenu("地址族", choices: IPAddressFamily.allCases, selection: setting(\.addressFamily)) {
+                    t(LocalizedText($0.label))
+                }
+                .accessibilityIdentifier("addressFamilyPicker")
+                HStack {
+                    Text(t("MTU"))
+                    Spacer()
+                    TextField("0", text: $mtu).keyboardType(.numberPad).multilineTextAlignment(.trailing).frame(width: 100).focused($focusedField, equals: .mtu).accessibilityIdentifier("mtuField")
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = .mtu }
+                inputError(.mtu)
+            } header: { Label(t("网络"), systemImage: "network") } footer: {
+                Text(t("设置为 0 则使用自动 MTU。"))
+            }
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(t("自定义 DNS")).font(.subheadline)
+                    dnsInput
+                        .font(.system(.caption, design: .monospaced))
+                        .autocorrectionDisabled().textInputAutocapitalization(.never)
+                        .focused($focusedField, equals: .dns).accessibilityIdentifier("customDNSField")
+                        .environment(\.layoutDirection, .leftToRight)
+                }.disabled(model.settings.doNotSetDNS).opacity(model.settings.doNotSetDNS ? 0.45 : 1)
+                inputError(.dns)
+                Toggle(t("DNS 防泄漏"), isOn: Binding(get: { model.settings.dnsLeakProtection }, set: { enabled in
+                    var value = model.settings
+                    value.dnsLeakProtection = enabled; if enabled { value.doNotSetDNS = false }
+                    apply(value)
+                })).accessibilityIdentifier("dnsLeakSwitch")
+                Toggle(t("不向隧道下发 DNS"), isOn: Binding(get: { model.settings.doNotSetDNS }, set: { enabled in
+                    var value = model.settings
+                    value.doNotSetDNS = enabled; if enabled { value.dnsLeakProtection = false }
+                    apply(value)
+                })).accessibilityIdentifier("noDNSSwitch")
+            } header: { Label(t("DNS"), systemImage: "server.rack") } footer: {
+                Text(t("每行一个 DNS，最多 8 个；支持 IP、IP:端口、DoH、DoT、DoQ。"))
             }
             Section {
                 HStack(spacing: 16) {
-                    Picker(t("节点导出"), selection: Binding(get: { activeExportFormat }, set: { exportFormat = $0; exportFeedback = nil })) {
-                        ForEach(exportFormats) { format in
-                            Text(format.label).tag(format)
-                        }
-                    }.pickerStyle(.menu).accessibilityIdentifier("exportFormatMenu").accessibilityValue(activeExportFormat.label)
+                    choiceMenu("节点导出", choices: exportFormats, selection: Binding(get: { activeExportFormat }, set: {
+                        exportFormat = $0
+                        exportFeedback = nil
+                    })) { $0.label }
+                    .accessibilityIdentifier("exportFormatMenu")
+                    .accessibilityValue(activeExportFormat.label)
                     Button(t(exportFeedback == nil ? "复制" : "已复制")) { copyNodes() }
                         .buttonStyle(.borderless).disabled(exportCount == 0).accessibilityIdentifier("copyNodesButton")
                 }
@@ -181,7 +211,11 @@ struct SettingsView: View {
                     }.buttonStyle(.plain).listRowInsets(EdgeInsets())
                         .accessibilityIdentifier("projectLink-" + link.id)
                 }
-                LabeledContent(t("版本"), value: model.versionLabel).accessibilityIdentifier("versionRow")
+                HStack {
+                    Text(t("版本"))
+                    Spacer()
+                    Text(model.versionLabel).foregroundStyle(.secondary)
+                }.accessibilityElement(children: .combine).accessibilityIdentifier("versionRow")
                 NavigationLink { DiagnosticsView(model: model) } label: { Label(t("连接诊断"), systemImage: "waveform.path.ecg") }.accessibilityIdentifier("diagnosticsButton")
             } header: { Text(t("关于")) }
             Section {
@@ -200,11 +234,16 @@ struct SettingsView: View {
         }
         // A fresh collection view avoids UIKit retaining mirrored cell layers after RTL changes.
         .id(model.settings.language)
-        .disabled(model.switching || model.measuring)
+        .disabled(model.switching || model.measuring || model.disconnectingForOptimization)
         .navigationTitle(t("设置")).navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden()
-        .task(id: [mtu, timeout, minimumSpeed, customDNS]) {
-            do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+        .background {
+            if #available(iOS 26.0, *) {
+                SettingsBackGesture(edgeOnly: !model.settings.language.isRightToLeft)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+        .task(id: [mtu, cacheDays, timeout, minimumSpeed, customDNS]) {
+            do { try await Task.sleep(nanoseconds: 500_000_000) } catch { return }
             saveTextInputs()
         }
         .onChange(of: model.settings.language) { _ in saveTextInputs() }
@@ -216,14 +255,16 @@ struct SettingsView: View {
         .onChange(of: model.settings.strength) { strength in
             if !adjustingStrength { strengthPosition = Double(UserSettings.Strength.allCases.firstIndex(of: strength) ?? 1) }
         }
+        .onChange(of: model.settings.cacheNeverExpires) { enabled in
+            if enabled {
+                cacheDays = String(model.settings.cacheDays)
+                inputErrors[.cacheDays] = nil
+            }
+        }
         .onDisappear { saveTextInputs(); saveStrength() }
         .task(id: exportKey) { exportFeedback = nil; refreshExportCount() }
         .onChange(of: model.cache) { _ in refreshExportCount() }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: { Label(t("返回"), systemImage: "chevron.backward") }
-                    .accessibilityIdentifier("settingsClose")
-            }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button(t("完成")) { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
@@ -235,6 +276,23 @@ struct SettingsView: View {
         } message: { Text(validationError ?? model.errorMessage ?? "") }
         .preferredColorScheme(model.settings.theme.colorScheme)
     }
+    @ViewBuilder private var dnsInput: some View {
+        let placeholder = t("留空使用默认 DNS 1.1.1.1")
+        if #available(iOS 16.0, *) {
+            TextField(placeholder, text: $customDNS, axis: .vertical).lineLimit(1...4)
+        } else {
+            TextEditor(text: $customDNS)
+                .frame(height: legacyDNSHeight)
+                .overlay(alignment: .topLeading) {
+                    if customDNS.isEmpty {
+                        Text(placeholder).foregroundStyle(.secondary)
+                            .padding(.horizontal, 5).padding(.vertical, 8)
+                            .allowsHitTesting(false).accessibilityHidden(true)
+                    }
+                }
+                .accessibilityLabel(t("自定义 DNS"))
+        }
+    }
     private var selectedStrength: UserSettings.Strength {
         UserSettings.Strength.allCases[min(2, max(0, Int(strengthPosition.rounded())))]
     }
@@ -243,13 +301,24 @@ struct SettingsView: View {
         var value = model.settings; value.strength = selectedStrength; apply(value)
     }
     private func languageName(_ language: AppLanguage) -> String { language.resolved.nativeName }
+    private func choiceMenu<Value: Hashable>(_ title: LocalizedText, choices: [Value], selection: Binding<Value>,
+                                             label: @escaping (Value) -> String) -> some View {
+        Menu {
+            ForEach(choices, id: \.self) { choice in
+                Button { selection.wrappedValue = choice } label: {
+                    if choice == selection.wrappedValue { Label(label(choice), systemImage: "checkmark") }
+                    else { Text(label(choice)) }
+                }
+            }
+        } label: { menuLabel(title, value: label(selection.wrappedValue)) }
+    }
     private func menuLabel(_ title: LocalizedText, value: String) -> some View {
         HStack(spacing: 12) {
             Text(t(title)).foregroundStyle(Color.primary)
             Spacer(minLength: 12)
             Text(value).lineLimit(1).fixedSize(horizontal: true, vertical: false).foregroundStyle(.tint)
             Image(systemName: "chevron.up.chevron.down").font(.caption.weight(.semibold)).foregroundStyle(.tint)
-        }.contentShape(Rectangle())
+        }.font(.body).contentShape(Rectangle())
     }
     @ViewBuilder private func projectIcon(_ link: ProjectLink) -> some View {
         if let asset = link.assetName {
@@ -301,6 +370,15 @@ struct SettingsView: View {
                     throw WARPError.message("MTU 请填写 0（自动），或 1280–1500 的整数。")
                 }
                 value.mtu = number
+            case .cacheDays:
+                guard !value.cacheNeverExpires else { return }
+                let text = cacheDays.trimmingCharacters(in: .whitespaces)
+                let digits = text.compactMap(\.wholeNumberValue).filter { (0...9).contains($0) }
+                guard digits.count == text.count, let number = Int(digits.map(String.init).joined()),
+                      UserSettings.validCacheDays.contains(number) else {
+                    throw WARPError.message("缓存有效期请输入 1 至 36500 天的整数。")
+                }
+                value.cacheDays = number
             case .timeout:
                 guard let number = Int(timeout.trimmingCharacters(in: .whitespaces)), (1...30).contains(number) else {
                     throw WARPError.message("探测超时应为 1–30 秒。")
@@ -372,14 +450,143 @@ enum ProjectLink: String, CaseIterable, Identifiable {
     }
 }
 
+@available(iOS 26.0, *)
+private struct SettingsBackGesture: UIViewControllerRepresentable {
+    let edgeOnly: Bool
+
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.edgeOnly = edgeOnly
+        controller.updateGesture()
+    }
+
+    final class Controller: UIViewController {
+        var edgeOnly = false
+        private weak var disabledGesture: UIGestureRecognizer?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            updateGesture()
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            restoreGesture()
+        }
+
+        func updateGesture() {
+            if !edgeOnly {
+                restoreGesture()
+            } else if let gesture = navigationController?.interactiveContentPopGestureRecognizer, gesture.isEnabled {
+                gesture.isEnabled = false
+                disabledGesture = gesture
+            }
+        }
+
+        private func restoreGesture() {
+            disabledGesture?.isEnabled = true
+            disabledGesture = nil
+        }
+    }
+}
+
 struct DiagnosticsView: View {
     @ObservedObject var model: VPNModel
+    @State private var report: String?
+    @State private var document: DiagnosticsDocument?
+    @State private var exporting = false
+    @State private var exportError: String?
+
     private func t(_ text: LocalizedText) -> String { text.localized(in: model.settings.language) }
+
     var body: some View {
-        ScrollView { Text(model.diagnostics).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding().accessibilityIdentifier("diagnosticText") }
+        DiagnosticsTextView(text: report ?? model.diagnosticsOverview)
             .navigationTitle(t("连接诊断")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ShareLink(item: model.reportURL) { Image(systemName: "square.and.arrow.up") } }
-            .task { await model.refreshDiagnostics() }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button {
+                            if let report { UIPasteboard.general.string = report }
+                        } label: {
+                            Label(t("复制到剪贴板"), systemImage: "doc.on.doc")
+                        }
+                        .disabled(report == nil)
+                        Button {
+                            if let report {
+                                document = DiagnosticsDocument(text: report)
+                                exporting = true
+                            }
+                        } label: {
+                            Label(t("导出为文件"), systemImage: "doc")
+                        }
+                        .disabled(report == nil)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel(t("共享"))
+                    .accessibilityIdentifier("diagnosticShareMenu")
+                }
+            }
+            .fileExporter(isPresented: $exporting, document: document, contentType: .plainText,
+                          defaultFilename: "WARP-Diagnostics") { result in
+                if case .failure(let error) = result { exportError = error.localizedDescription }
+            }
+            .alert(t("导出诊断失败"), isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
+                Button(t("好")) { exportError = nil }
+            } message: { Text(exportError ?? "") }
+            .task {
+                while !Task.isCancelled {
+                    let snapshot = await model.diagnosticsReport()
+                    guard !Task.isCancelled else { return }
+                    report = snapshot
+                    do { try await Task.sleep(nanoseconds: 3_000_000_000) }
+                    catch { return }
+                }
+            }
+    }
+}
+
+private struct DiagnosticsTextView: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView(frame: .zero, textContainer: nil)
+        view.isEditable = false
+        view.isSelectable = true
+        view.backgroundColor = .clear
+        view.textColor = .label
+        view.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for: .monospacedSystemFont(ofSize: 12, weight: .regular))
+        view.adjustsFontForContentSizeCategory = true
+        view.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
+        view.layoutManager.allowsNonContiguousLayout = true
+        view.accessibilityIdentifier = "diagnosticText"
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        guard view.text != text else { return }
+        let offset = view.contentOffset
+        let selection = view.selectedRange
+        view.text = text
+        view.accessibilityLabel = text
+        if selection.length > 0, NSMaxRange(selection) <= text.utf16.count { view.selectedRange = selection }
+        view.setContentOffset(offset, animated: false)
+    }
+}
+
+private struct DiagnosticsDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText] }
+    let text: String
+
+    init(text: String) { self.text = text }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        text = String(decoding: data, as: UTF8.self)
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }
 

@@ -31,7 +31,7 @@ final class TunnelSwitchTests: XCTestCase {
         try accounts.save(identity); try caches.save(cache(identity))
         XCTAssertNotNil(try CachedTunnelTarget.load(kind: .wg, running: settings, latest: settings, accounts: accounts, caches: caches, now: now))
         XCTAssertNil(try CachedTunnelTarget.load(kind: .awg, running: settings, latest: settings, accounts: accounts, caches: caches, now: now))
-        XCTAssertNil(try CachedTunnelTarget.load(kind: .wg, running: settings, latest: settings, accounts: accounts, caches: caches, now: now.addingTimeInterval(21600)))
+        XCTAssertNil(try CachedTunnelTarget.load(kind: .wg, running: settings, latest: settings, accounts: accounts, caches: caches, now: now.addingTimeInterval(settings.cacheLifetime)))
         var v6 = settings; v6.addressFamily = .ipv6
         XCTAssertNil(try CachedTunnelTarget.load(kind: .wg, running: v6, latest: v6, accounts: accounts, caches: caches, now: now))
         var rotated = identity; rotated.id = "rotated"; try accounts.save(rotated)
@@ -42,7 +42,7 @@ final class TunnelSwitchTests: XCTestCase {
         try accounts.save(identity); try caches.save(cache(identity))
         var latest = settings; latest.mtu = 1400; latest.customDNS = "8.8.8.8"; latest.addressFamily = .ipv6
         XCTAssertNotNil(try CachedTunnelTarget.load(kind: .awg, running: settings, latest: latest, accounts: accounts, caches: caches, now: now))
-        latest.cacheHours = 0
+        latest.cacheNeverExpires = true
         XCTAssertNotNil(try CachedTunnelTarget.load(kind: .awg, running: settings, latest: latest, accounts: accounts, caches: caches, now: now.addingTimeInterval(100 * 86400)))
     }
     func testCachedProtocolRestoresManualChoiceOrFastestAutomaticNode() throws {
@@ -52,6 +52,23 @@ final class TunnelSwitchTests: XCTestCase {
         XCTAssertEqual(CachedNodeChoice.resolve(cache, stored: "missing")?.endpoint, fastest)
         let manual = cache.results.last!.endpoint
         XCTAssertEqual(CachedNodeChoice.resolve(cache, stored: manual.id), CachedNodeChoice(endpoint: manual, automatic: false))
+    }
+    func testLiveMeasurementCanRetestOnlyTheRunningCacheAfterExpiry() throws {
+        let identity = account(), cached = try cache(identity), active = state()
+        let target = WARPEndpoint.fixtures[1]
+        var request = TunnelSwitchRequest(id: UUID(), sessionID: active.sessionID, expectedRevision: 0, endpoint: target, automatic: true)
+        XCTAssertFalse(cached.isValid(for: identity, now: cached.expiresAt, settings: settings))
+        XCTAssertFalse(request.usesMeasurementCache(cached, runningCache: cached, account: identity, current: active))
+        request.measurementCacheCreatedAt = cached.createdAt
+        let decoded = try JSONDecoder().decode(TunnelSwitchRequest.self, from: JSONEncoder().encode(request))
+        XCTAssertTrue(decoded.usesMeasurementCache(cached, runningCache: cached, account: identity, current: active))
+        XCTAssertFalse(decoded.usesMeasurementCache(cached, runningCache: nil, account: identity, current: active))
+        var rotated = identity
+        rotated.id = "rotated"
+        XCTAssertFalse(decoded.usesMeasurementCache(cached, runningCache: cached, account: rotated, current: active))
+        let crossProtocol = TunnelSwitchRequest(id: UUID(), sessionID: active.sessionID, expectedRevision: 0,
+            endpoint: WARPEndpoint.fixtures(for: .awg)[0], automatic: true, measurementCacheCreatedAt: cached.createdAt)
+        XCTAssertFalse(crossProtocol.usesMeasurementCache(cached, runningCache: cached, account: identity, current: active))
     }
     func testRequestRejectsOtherSessionsStaleRevisionsAndAddressFamilies() throws {
         let state = state(), id = UUID()
@@ -141,7 +158,7 @@ final class TunnelSwitchTests: XCTestCase {
         var events: [String] = []
         try await DisconnectedPreparation.run(disconnect: { events.append("stop") }, waitUntilDisconnected: {
             XCTAssertEqual(events, ["stop"])
-            try await Task.sleep(for: .milliseconds(10))
+            try await Task.sleep(nanoseconds: 10_000_000)
             events.append("disconnected")
         }, prepare: { events.append("prepare") })
         XCTAssertEqual(events, ["stop", "disconnected", "prepare"])

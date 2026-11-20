@@ -4,7 +4,7 @@ import Foundation
 /// Requests use the app's authenticated loopback proxy; no system proxy or TUN is installed.
 actor NodeQualityProbe {
     func run(endpoints: [WARPEndpoint], account: WARPAccount, settings: UserSettings,
-        completed: [ProbeResult] = [], partial: ProbeResult? = nil,
+        completed: [ProbeResult] = [], partial: ProbeResult? = nil, useLiteralTrace: Bool = false,
         checkpoint: (@Sendable (ProbeResult) async throws -> Void)? = nil,
         didComplete: (@Sendable (ProbeResult) async throws -> Void)? = nil,
         progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> [ProbeResult] {
@@ -19,7 +19,7 @@ actor NodeQualityProbe {
             try Task.checkCancellation()
             let result = try await measure(endpoint, account: account, settings: settings, platform: platform,
                 index: index, total: endpoints.count, partial: partial?.endpoint == endpoint ? partial : nil,
-                checkpoint: checkpoint, progress: progress)
+                useLiteralTrace: useLiteralTrace, checkpoint: checkpoint, progress: progress)
             try await didComplete?(result)
             results.append(result)
             await progress(.sample(result))
@@ -29,7 +29,7 @@ actor NodeQualityProbe {
     }
 
     private func measure(_ endpoint: WARPEndpoint, account: WARPAccount, settings: UserSettings, platform: CorePlatform,
-        index: Int, total: Int, partial: ProbeResult?, checkpoint: (@Sendable (ProbeResult) async throws -> Void)?,
+        index: Int, total: Int, partial: ProbeResult?, useLiteralTrace: Bool, checkpoint: (@Sendable (ProbeResult) async throws -> Void)?,
         progress: @escaping @Sendable (PreparationUpdate) async -> Void) async throws -> ProbeResult {
         let strength = settings.strength, profile = settings.qualityProfile
         // Covers a process kill between committing the last measurement and completing the node.
@@ -64,15 +64,16 @@ actor NodeQualityProbe {
         do {
             await emit(.retesting, 0, partial == nil ? "校验测速链路" : "恢复测速链路",
                 "确认实际经过 WARP，保留已完成的连通与下载结果")
-            let (trace, response) = try await session.data(for: request("https://speed.cloudflare.com/cdn-cgi/trace", timeout: max(8, settings.probeTimeout)))
-            let text = String(decoding: trace, as: UTF8.self)
+            let traceURL = useLiteralTrace ? WARPConfiguration.literalTraceURL : "https://speed.cloudflare.com/cdn-cgi/trace"
+            let cloudflareURL = useLiteralTrace ? traceURL : WARPConfiguration.testURL
+            let (trace, response) = try await session.data(for: request(traceURL, timeout: max(8, settings.probeTimeout)))
             guard (response as? HTTPURLResponse)?.statusCode == 200, authentication.wasUsed,
-                  text.split(separator: "\n").contains(where: { $0 == "warp=on" || $0 == "warp=plus" }) else {
+                  LiveNodeProbe.confirmsWARP(trace) else {
                 throw WARPError.message("未确认测速请求通过所选 WARP 节点")
             }
             // Warm each origin once so a cold TLS handshake does not look like latency jitter.
             if !result().passesStability(profile) {
-                for url in [WARPConfiguration.testURL, "https://www.youtube.com/generate_204"] {
+                for url in [cloudflareURL, "https://www.youtube.com/generate_204"] where url != traceURL {
                     _ = try await session.data(for: request(url, timeout: max(8, settings.probeTimeout)))
                 }
             }
@@ -81,11 +82,12 @@ actor NodeQualityProbe {
                 let round = samples.count
                 await emit(.retesting, Double(round) / Double(strength.maximumRounds) * 0.5,
                     "稳定性检查", "\(round < strength.minimumRounds ? "检查" : "补测")第 \(round + 1) 次（最多 \(strength.maximumRounds) 次） · \(round % 2 == 0 ? "Cloudflare" : "YouTube")，达标即结束")
-                let url = round % 2 == 0 ? WARPConfiguration.testURL : "https://www.youtube.com/generate_204"
+                let url = round % 2 == 0 ? cloudflareURL : "https://www.youtube.com/generate_204"
                 let start = Date()
                 do {
-                    let (_, response) = try await session.data(for: request(url, timeout: settings.probeTimeout))
-                    let good = (response as? HTTPURLResponse)?.statusCode == 204
+                    let (data, response) = try await session.data(for: request(url, timeout: settings.probeTimeout))
+                    let status = (response as? HTTPURLResponse)?.statusCode
+                    let good = url == traceURL ? status == 200 && LiveNodeProbe.confirmsWARP(data) : status == 204
                     samples.append(good ? max(1, Int32(Date().timeIntervalSince(start) * 1000)) : -1)
                     if good && round % 2 == 1 { google += 1 }
                 } catch {
@@ -131,19 +133,28 @@ actor NodeQualityProbe {
     }
 }
 
-private final class ProbeProxyAuthentication: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class ProbeProxyAuthentication: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     let proxy: ProbeProxy
     private let lock = NSLock()
     private var used = false
     var wasUsed: Bool { lock.lock(); defer { lock.unlock() }; return used }
     init(proxy: ProbeProxy) { self.proxy = proxy }
-    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        guard challenge.protectionSpace.isProxy(), challenge.protectionSpace.host == "127.0.0.1",
-              challenge.protectionSpace.port == Int(proxy.port), challenge.previousFailureCount == 0 else {
-            completionHandler(.performDefaultHandling, nil); return
+    func disposition(for space: URLProtectionSpace, requestHost: String?, previousFailures: Int) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        guard space.isProxy() else { return (.performDefaultHandling, nil) }
+        // Older CFNetwork versions report the CONNECT destination as the host
+        // while still reporting the explicitly configured loopback proxy port.
+        guard space.port == Int(proxy.port), space.authenticationMethod == NSURLAuthenticationMethodHTTPBasic,
+              space.host == "127.0.0.1" || space.host == requestHost, previousFailures == 0 else {
+            return (.cancelAuthenticationChallenge, nil)
         }
         lock.lock(); used = true; lock.unlock()
-        completionHandler(.useCredential, URLCredential(user: proxy.username, password: proxy.password, persistence: .forSession))
+        return (.useCredential, URLCredential(user: proxy.username, password: proxy.password, persistence: .forSession))
+    }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let (disposition, credential) = disposition(for: challenge.protectionSpace,
+            requestHost: task.currentRequest?.url?.host ?? task.originalRequest?.url?.host,
+            previousFailures: challenge.previousFailureCount)
+        completionHandler(disposition, credential)
     }
 }

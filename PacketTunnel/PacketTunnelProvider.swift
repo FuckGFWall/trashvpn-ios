@@ -16,6 +16,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var tunOpenCount = 0
     private var installedOuterHosts = Set<String>()
     private var runtimeState: ActiveTunnelState?
+    private var runningCache: NodeCache?
     private var runningConfiguration = ""
     private let runtimeStore = ActiveTunnelStore()
 
@@ -66,6 +67,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 state.tunOpenCount = tunOpenCount
                 try runtimeStore.save(state)
                 runtimeState = state
+                runningCache = cache
                 Diagnostics.record("tunnel started core=\(ClashVersion())", process: "tunnel")
                 completionHandler(nil)
             } catch {
@@ -110,7 +112,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private func cleanup() {
         if let runtimeState { try? runtimeStore.remove(sessionID: runtimeState.sessionID) }
-        runtimeState = nil; runningConfiguration = ""; tunOpenCount = 0; installedOuterHosts = []
+        runtimeState = nil; runningCache = nil; runningConfiguration = ""; tunOpenCount = 0; installedOuterHosts = []
         try? core?.close(); core = nil
         bridge?.stop(); bridge = nil
         platform?.shutdown(); platform = nil
@@ -157,7 +159,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let nextPreferences = preferences.forProtocol(target.kind).withCachePolicy(from: try? UserSettings.load())
         guard let account = try KeychainAccountStore().load(target.kind),
               let cache = try NodeCacheStore().load(target.kind, family: nextPreferences.addressFamily),
-              cache.isValid(for: account, now: Date(), family: nextPreferences.addressFamily, settings: nextPreferences),
+              request.usesMeasurementCache(cache, runningCache: runningCache, account: account, current: previous)
+                || cache.isValid(for: account, now: Date(), family: nextPreferences.addressFamily, settings: nextPreferences),
               cache.results.contains(where: { $0.endpoint == target }) else {
             throw WARPError.message("目标协议或节点缓存已失效，请断开 VPN 后重新优选。")
         }
@@ -182,7 +185,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             try transaction.perform()
             runningConfiguration = content
         } else { try runtimeStore.save(next) }
-        selected = target; preferences = nextPreferences; runtimeState = next
+        selected = target; preferences = nextPreferences; runtimeState = next; runningCache = cache
         Diagnostics.record("hot switch session=\(next.sessionID) revision=\(next.revision) endpoint=\(target.id) tunOpens=\(tunOpenCount)", process: "tunnel")
         return next
     }

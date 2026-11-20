@@ -14,12 +14,19 @@ struct ConnectionLocation: Equatable, Sendable {
         guard ["on", "plus"].contains(fields["warp"] ?? ""),
               let country = fields["loc"]?.uppercased(), country.utf8.count == 2,
               country.utf8.allSatisfy({ (65...90).contains($0) }),
-              Locale.Region.isoRegions.contains(where: { $0.identifier == country }),
+              Self.isISORegion(country),
               let colo = fields["colo"]?.uppercased(), colo.utf8.count == 3,
               colo.utf8.allSatisfy({ (65...90).contains($0) }) else { return nil }
         // Match the previous WARP exit verification: flag from `loc`, airport from `colo`.
         // These describe different things and do not need to be in the same country.
         self.country = country; self.colo = colo
+    }
+
+    private static func isISORegion(_ code: String) -> Bool {
+        if #available(iOS 16.0, *) {
+            return Locale.Region.isoRegions.contains { $0.identifier == code }
+        }
+        return Locale.isoRegionCodes.contains(code)
     }
 
     var flag: String {
@@ -38,7 +45,7 @@ struct ConnectionLocation: Equatable, Sendable {
             try Task.checkCancellation()
             // A cold tunnel or DNS lookup may transiently fail. Retry once with Cloudflare's
             // TLS-valid literal address, still requiring warp=on/plus through the system VPN.
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(nanoseconds: 1_000_000_000)
             return try await fetch(host: "1.1.1.1")
         }
     }

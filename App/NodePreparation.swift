@@ -27,6 +27,18 @@ extension NodeOptimizing {
 struct EndpointCatalog {
     static let wireguardNetworks = ["8.6.112", "8.34.70", "8.34.146", "8.35.211", "8.39.125", "8.39.204",
         "8.39.214", "8.47.69", "162.159.192", "162.159.195", "188.114.96", "188.114.97", "188.114.98", "188.114.99"]
+    // Public WARP ports used by the Windows client's fallback discovery.
+    static let alternatePorts = [
+        864, 854, 859, 878, 880, 890, 891, 894, 903, 908,
+        928, 934, 939, 942, 943, 945, 946, 955, 968, 987,
+        988, 1002, 1010, 1014, 1018, 1070, 1074, 1180, 1387, 1843,
+        2371, 2506, 3138, 3476, 3581, 3854, 4177, 4198, 4233, 5279,
+        5956, 7103, 7152, 7156, 7281, 7559, 8319, 8742, 8854, 8886
+    ]
+    private static func campusEndpoint(_ kind: WARPProtocol) -> WARPEndpoint {
+        WARPEndpoint(host: "8.35.211.127", port: 864, kind: kind)
+    }
+
     static func candidates(account: WARPAccount, previous: NodeCache?, family: IPAddressFamily = .ipv4, limit: Int = 48) -> [WARPEndpoint] {
         let kind = account.kind
         var nodes = (previous?.results.map(\.endpoint) ?? []) + account.endpoints
@@ -59,6 +71,7 @@ struct EndpointCatalog {
         } else {
             // Warm hints are public server addresses only; all probes use the newly registered identity.
             nodes += WARPEndpoint.fixtures.filter { $0.kind != .masque }.map { WARPEndpoint(host: $0.host, port: $0.port, kind: kind) }
+            nodes.append(campusEndpoint(kind))
             let ports = [2408, 500, 1701, 4500]
             for round in 0..<(limit / wireguardNetworks.count + 1) {
                 for prefix in wireguardNetworks.shuffled() {
@@ -69,6 +82,28 @@ struct EndpointCatalog {
         }
         var seen = Set<String>()
         return Array(nodes.filter { $0.kind == kind && $0.isValid && $0.family == family && seen.insert($0.id).inserted }.prefix(limit))
+    }
+
+    static func supplementalCandidates(for primary: [WARPEndpoint]) -> [WARPEndpoint] {
+        guard let first = primary.first, first.kind != .masque else { return primary }
+        var candidates: [WARPEndpoint] = []
+        var seen = Set<String>()
+        func add(_ endpoint: WARPEndpoint) {
+            if candidates.count < primary.count, seen.insert(endpoint.id).inserted { candidates.append(endpoint) }
+        }
+        if first.family == .ipv4 { add(campusEndpoint(first.kind)) }
+        // Retry a few original endpoints with DNS removed from the screening request.
+        for endpoint in primary.prefix(8) { add(endpoint) }
+        var seenHosts = Set<String>()
+        let hosts = primary.map(\.host).filter { seenHosts.insert($0).inserted }
+        // Cover the port list before revisiting a port. On the next lap use a different host.
+        for lap in hosts.indices {
+            for (index, port) in alternatePorts.enumerated() {
+                add(WARPEndpoint(host: hosts[(index + lap) % hosts.count], port: port, kind: first.kind))
+                if candidates.count == primary.count { return candidates }
+            }
+        }
+        return candidates
     }
 }
 
@@ -112,26 +147,9 @@ actor MihomoOptimizer: NodeOptimizing {
         for result in initial.displayResults { await publish(.sample(result)) }
         var finalists = initial.finalists
         if finalists == nil {
-            let candidates = initial.candidates
-            func screen(attempts: Int, saved: [String: ProbeResult]) async throws -> [ProbeResult] {
-                try await probe.run(endpoints: candidates, account: account, samples: attempts,
-                    stopAfterSuccesses: config.strength.qualityCandidates, stopOnFirstSuccess: true, family: config.addressFamily, settings: config,
-                    resuming: saved, checkpoint: { try await journal.screen($0) }, willTest: { step in
-                        await publish(.progress(.init(stage: .screening,
-                            fraction: 0.38 + Double(step.index - 1) / Double(step.total) * 0.17,
-                            title: attempts == 1 ? "连通筛选" : "补充连通检查",
-                            detail: "\(step.endpoint.address) · \(attempts == 1 ? "首次探测" : "未找到可用端点，再尝试一次") · 超时 \(config.probeTimeout) 秒",
-                            substep: step.index, substepTotal: step.total, substepLabel: "候选节点")))
-                    }) { result in await publish(.sample(result)) }
-            }
-            var screened = try await screen(attempts: 1, saved: initial.screening)
-            // Retry only when the entire first pass failed, instead of repeating every dead port.
-            if screened.allSatisfy({ $0.median == nil }) {
-                let snapshot = await journal.snapshot()
-                screened = try await screen(attempts: 2, saved: snapshot.screening)
-            }
+            let screened = try await probe.run(journal: journal, account: account, settings: config, progress: publish)
             try Task.checkCancellation()
-            let selected = Array(screened.filter { $0.median != nil }.sorted(by: ProbeResult.isBetter).prefix(config.strength.qualityCandidates)).map(\.endpoint)
+            let selected = screened.sorted(by: ProbeResult.isBetter).map(\.endpoint)
             guard !selected.isEmpty else {
                 try checkpoints.remove(account.kind, family: config.addressFamily)
                 throw WARPError.message("当前网络未找到可用的 \(account.kind.label) · \(config.addressFamily.label) 端点，可切换网络或地址族后重试。注册身份已保留。")
@@ -143,7 +161,7 @@ actor MihomoOptimizer: NodeOptimizing {
         }
         let snapshot = await journal.snapshot()
         return try await quality.run(endpoints: finalists ?? [], account: account, settings: config,
-            completed: snapshot.completed, partial: snapshot.partial,
+            completed: snapshot.completed, partial: snapshot.partial, useLiteralTrace: snapshot.supplementalScreening == true,
             checkpoint: { try await journal.sample($0) }, didComplete: { try await journal.finish($0) }, progress: publish)
     }
 }
@@ -203,7 +221,7 @@ struct NodePreparation: Sendable {
         try caches.save(cache)
         await progress(.progress(.init(stage: .finalizing, fraction: 0.99, title: "完成优选", detail: "节点缓存已写入，清理已完成的优选进度")))
         try checkpoints?.remove(kind, family: family)
-        Diagnostics.record("preparation completed protocol=\(kind.rawValue) family=\(family.rawValue) nodes=\(cache.results.count) cacheHours=\(config.cacheHours) download=\(config.downloadTestEnabled) elapsed=\(Int(Date().timeIntervalSince(started)))s", process: "app")
+        Diagnostics.record("preparation completed protocol=\(kind.rawValue) family=\(family.rawValue) nodes=\(cache.results.count) cacheDays=\(config.cacheDays) neverExpires=\(config.cacheNeverExpires) download=\(config.downloadTestEnabled) elapsed=\(Int(Date().timeIntervalSince(started)))s", process: "app")
         await progress(.progress(.init(stage: .ready, fraction: 1, title: "连接已就绪", detail: "优选完成，已保存 \(cache.results.count) 个节点")))
         return PreparedNodes(cache: cache, reusedCache: false)
     }

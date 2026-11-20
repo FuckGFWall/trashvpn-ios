@@ -15,7 +15,7 @@ struct TrashVPNApp: App {
                 .task { await model.prepare() }
                 .onChange(of: scenePhase) { phase in
                     if phase == .background { model.enteredBackground() }
-                    if phase == .active { model.enteredForeground(); Task { await model.refreshDiagnostics() } }
+                    if phase == .active { model.enteredForeground() }
                 }
         }
     }

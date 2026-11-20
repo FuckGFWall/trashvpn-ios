@@ -12,6 +12,7 @@ final class VPNModel: ObservableObject {
     @Published private(set) var progress = PreparationProgress.initial
     @Published private(set) var automaticSelection = true
     @Published private(set) var switching = false
+    @Published private(set) var disconnectingForOptimization = false
     @Published private(set) var measurementKind: NodeMeasurementKind?
     @Published private(set) var testingNodeID: String?
     @Published private(set) var measurements: [String: NodeMeasurement] = [:]
@@ -27,7 +28,17 @@ final class VPNModel: ObservableObject {
     var measuring: Bool { measurementKind != nil }
     var displaySelected: WARPEndpoint { measurementOrigin?.endpoint ?? selected }
     var displayAutomatic: Bool { measurementOrigin?.automatic ?? automaticSelection }
-    var selectionUnavailable: Bool { switching || scanning || measuring || active && !connected }
+    var selectionUnavailable: Bool { switching || scanning || measuring || disconnectingForOptimization || active && !connected }
+    var canOptimize: Bool {
+        initialized && !switching && !measuring && !disconnectingForOptimization && (!active || connected)
+    }
+    var canTestCachedNodes: Bool {
+        guard !selectionUnavailable, let cache, let account = try? accounts.load(selected.kind) else { return false }
+        if connected {
+            return cache.canExport(for: account, family: addressFamily) && cache.results.contains { $0.endpoint == selected }
+        }
+        return cache.isValid(for: account, now: Date(), family: addressFamily, settings: cacheValidationSettings)
+    }
     private var runningSettings: UserSettings?
     private var runtimeState: ActiveTunnelState?
     private var switchingTask: Task<Void, Never>?
@@ -44,7 +55,6 @@ final class VPNModel: ObservableObject {
     @Published var verifying = false
     @Published var message: LocalizedText = "正在检查注册与节点缓存"
     @Published var trace = ""
-    @Published var diagnostics = ""
     @Published var errorMessage: String?
     @Published var cache: NodeCache?
     private var manager: NETunnelProviderManager?
@@ -52,11 +62,23 @@ final class VPNModel: ObservableObject {
     private let caches = NodeCacheStore()
     private let checkpoints = OptimizationCheckpointStore()
     private var preparationTask: Task<Void, Never>?
+    private var restartOptimizationAfterDisconnect = false
     private var generation = UUID()
+    private var pendingAutoConnect: UUID?
     private var taskKind: WARPProtocol?
     private var taskFamily: IPAddressFamily?
     private var observer: NSObjectProtocol?
-    private var polling: Task<Void, Never>?
+    private var diagnosticsPolling: Task<Void, Never>?
+    private var diagnosticsReportTask: Task<String, Never>?
+    private let offlineSettingsRoot: URL? = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--test-offline-ui") {
+            return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("OfflineUITestSettings", isDirectory: true)
+        }
+        #endif
+        return nil
+    }()
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
     #if DEBUG
     private var testBackgroundDeadline: Task<Void, Never>?
@@ -64,19 +86,13 @@ final class VPNModel: ObservableObject {
     private var initialized = false
     private var foreground = true
     private var taskFingerprint: String?
-    private var taskCacheHours: Int?
+    private var taskCacheLifetime: TimeInterval?
 
     var active: Bool { [.connected, .connecting, .reasserting, .disconnecting].contains(status) }
     var connected: Bool { status == .connected }
     var cacheIsFresh: Bool {
         guard let cache, let account = try? accounts.load(selected.kind) else { return false }
         return cache.isValid(for: account, now: Date(), family: addressFamily, settings: cacheValidationSettings)
-    }
-    var cacheStatus: String {
-        guard let cache, cache.kind == selected.kind else { return scanning ? "正在准备节点" : "暂无有效节点缓存" }
-        guard cacheIsFresh else { return "节点缓存已过期" }
-        if cacheValidationSettings.cacheNeverExpires { return "节点缓存永不过期 · \(addressFamily.label)" }
-        return "缓存有效至 " + cache.expiry(settings: cacheValidationSettings).formatted(date: .abbreviated, time: .shortened) + " · \(addressFamily.label)"
     }
     var versionLabel: String {
         "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") ?? "1.0.1") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") ?? ""))"
@@ -101,28 +117,25 @@ final class VPNModel: ObservableObject {
         preparingApp = true
         defer { preparingApp = false }
         do {
-            #if DEBUG
-            let offlineUI = ProcessInfo.processInfo.arguments.contains("--test-offline-ui")
-            #else
-            let offlineUI = false
-            #endif
             guard let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String).flatMap(Int.init) else {
                 throw UpgradeResetError.invalidJournal
             }
-            if !offlineUI { try await LegacyUpgradeMigration.run(currentBuild: build, environment: InstalledUpgradeEnvironment()) }
+            if let offlineSettingsRoot {
+                try FileManager.default.createDirectory(at: offlineSettingsRoot, withIntermediateDirectories: true)
+            } else {
+                try await LegacyUpgradeMigration.run(currentBuild: build, environment: InstalledUpgradeEnvironment())
+            }
         } catch {
             Diagnostics.record("legacy upgrade not committed: \(error)", process: "app")
             fail(WARPError.message("清理旧版数据失败，请重新打开应用重试。"))
             return
         }
         initialized = true
-        Diagnostics.reset("app")
-        #if DEBUG
-        if !ProcessInfo.processInfo.arguments.contains("--test-offline-ui") { networkAccessPrimer.start() }
-        #else
-        networkAccessPrimer.start()
-        #endif
-        do { settings = try UserSettings.load() } catch { fail(error); return }
+        if offlineSettingsRoot == nil {
+            Diagnostics.reset("app")
+            networkAccessPrimer.start()
+        }
+        do { settings = try UserSettings.load(root: offlineSettingsRoot) } catch { fail(error); return }
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         if let argument = arguments.first(where: { $0.hasPrefix("--protocol=") }),
@@ -136,13 +149,10 @@ final class VPNModel: ObservableObject {
         if let argument = arguments.first(where: { $0.hasPrefix("--settings-json=") }),
            let data = Data(base64Encoded: String(argument.dropFirst("--settings-json=".count))),
            let value = try? JSONDecoder().decode(UserSettings.self, from: data).validated() { settings = value }
-        try? settings.save()
+        try? settings.save(root: offlineSettingsRoot)
         #endif
         selected = WARPEndpoint.fixtures(for: settings.tunnelProtocol)[0]
-        #if DEBUG
-        // Exercise UI compatibility on older simulators without registering identities or running VPN.
-        if arguments.contains("--test-offline-ui") { initialized = false; return }
-        #endif
+        if offlineSettingsRoot != nil { initialized = false; return }
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
             manager = managers.first { ($0.protocolConfiguration as? NETunnelProviderProtocol)?.providerBundleIdentifier == WARPConfiguration.providerID }
@@ -155,10 +165,12 @@ final class VPNModel: ObservableObject {
         observer = NotificationCenter.default.addObserver(forName: .NEVPNStatusDidChange, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.refreshStatus() }
         }
-        polling = Task { [weak self] in
+        diagnosticsPolling = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refreshDiagnostics()
-                try? await Task.sleep(for: .seconds(3))
+                guard self != nil else { return }
+                _ = await self?.diagnosticsReport()
+                do { try await Task.sleep(nanoseconds: 3_000_000_000) }
+                catch { return }
             }
         }
         if active, selected.kind != settings.tunnelProtocol {
@@ -184,18 +196,19 @@ final class VPNModel: ObservableObject {
 
     func applySettings(_ value: UserSettings) throws {
         let value = try value.validated()
-        guard !switching, !measuring else { throw WARPError.message("正在切换或测试，请稍候。") }
+        guard !switching, !measuring, !disconnectingForOptimization else { throw WARPError.message("正在切换或测试，请稍候。") }
         guard !active || connected || value.tunnelProtocol == settings.tunnelProtocol else { throw WARPError.message("连接状态正在变化，请稍后切换协议。") }
         let old = settings
-        try value.save()
+        try value.save(root: offlineSettingsRoot)
         settings = value
-        UserDefaults.standard.set(value.tunnelProtocol.rawValue, forKey: "selectedProtocol")
+        if !value.autoConnectAfterOptimization { pendingAutoConnect = nil }
+        if offlineSettingsRoot == nil { UserDefaults.standard.set(value.tunnelProtocol.rawValue, forKey: "selectedProtocol") }
         if connected, old.tunnelProtocol != value.tunnelProtocol {
             beginProtocolSwitch(to: value.tunnelProtocol, previousSettings: old)
             return
         }
         if active {
-            if old.measurementFingerprint != value.measurementFingerprint || old.cacheHours != value.cacheHours {
+            if old.measurementFingerprint != value.measurementFingerprint || old.cacheLifetime != value.cacheLifetime {
                 message = "设置已保存，网络与优选设置将在断开后应用"
             }
             return
@@ -205,7 +218,7 @@ final class VPNModel: ObservableObject {
             selected = WARPEndpoint.fixtures(for: value.tunnelProtocol)[0]
             cache = nil; endpoints = []; results = [:]; trace = ""; errorMessage = nil
         }
-        if changed || old.cacheHours != value.cacheHours { startPreparation() }
+        if changed || old.cacheLifetime != value.cacheLifetime { startPreparation() }
     }
 
     func chooseAutomatic() {
@@ -232,7 +245,6 @@ final class VPNModel: ObservableObject {
                 storeChoice(endpoint: endpoint, automatic: automatic)
                 message = "已热切换到 \(endpoint.address)"
             } catch { fail(error) }
-            await refreshDiagnostics()
         }
     }
 
@@ -260,7 +272,7 @@ final class VPNModel: ObservableObject {
                             self.switching = false; self.switchingTask = nil
                             self.startPreparation()
                         })
-                    return // Preparation deliberately never calls connect().
+                    return
                 }
             } catch {
                 if !disconnectingForPreparation {
@@ -273,14 +285,14 @@ final class VPNModel: ObservableObject {
             }
             switching = false; switchingTask = nil
             refreshStatus()
-            await refreshDiagnostics()
         }
     }
 
-    private func hotSwitch(to endpoint: WARPEndpoint, automatic: Bool) async throws -> ActiveTunnelState {
+    private func hotSwitch(to endpoint: WARPEndpoint, automatic: Bool, measurementCache: NodeCache? = nil) async throws -> ActiveTunnelState {
         guard connected, let session = manager?.connection as? NETunnelProviderSession,
               let current = runtimeState else { throw WARPError.message("当前隧道不支持热切换，请重新连接一次。") }
-        let request = TunnelSwitchRequest(id: UUID(), sessionID: current.sessionID, expectedRevision: current.revision, endpoint: endpoint, automatic: automatic)
+        let request = TunnelSwitchRequest(id: UUID(), sessionID: current.sessionID, expectedRevision: current.revision,
+            endpoint: endpoint, automatic: automatic, measurementCacheCreatedAt: measurementCache?.createdAt)
         do {
             let data = try await ProviderMessageClient.send(JSONEncoder().encode(request)) { try session.sendProviderMessage($0, responseHandler: $1) }
             let reply = try JSONDecoder().decode(TunnelSwitchReply.self, from: data)
@@ -307,10 +319,10 @@ final class VPNModel: ObservableObject {
         return try JSONDecoder().decode(ActiveTunnelState.self, from: JSONSerialization.data(withJSONObject: runtime))
     }
     private func waitUntilDisconnected() async throws {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(20))
+        let deadline = ProcessInfo.processInfo.systemUptime + 20
         while manager.map({ [.connected, .connecting, .reasserting, .disconnecting].contains($0.connection.status) }) == true {
-            guard ContinuousClock.now < deadline else { throw WARPError.message("VPN 尚未断开，暂未开始注册和优选。") }
-            try await Task.sleep(for: .milliseconds(100))
+            guard ProcessInfo.processInfo.systemUptime < deadline else { throw WARPError.message("VPN 尚未断开，暂未开始注册和优选。") }
+            try await Task.sleep(nanoseconds: 100_000_000)
         }
         refreshStatus()
     }
@@ -359,7 +371,6 @@ final class VPNModel: ObservableObject {
         return "\(endpoint.kind.label)\(String(format: "%02d", index))"
     }
     var automaticEndpoint: WARPEndpoint { cache.flatMap { fastestNode(in: $0) } ?? displaySelected }
-    var selectedNodeName: String { displayAutomatic ? "自动选择" : nodeName(displaySelected) }
     func latency(for endpoint: WARPEndpoint) -> Int? { measurements[endpoint.id]?.latencyMS ?? results[endpoint.id]?.median.map(Int.init) }
     func speed(for endpoint: WARPEndpoint) -> Double? { measurements[endpoint.id]?.downloadMbps ?? results[endpoint.id]?.speedMbps }
     private func fastestNode(in cache: NodeCache) -> WARPEndpoint? {
@@ -368,7 +379,7 @@ final class VPNModel: ObservableObject {
 
     func testCachedNodes(_ kind: NodeMeasurementKind) {
         if measurementKind == kind { measurementTask?.cancel(); return }
-        guard !selectionUnavailable, cacheIsFresh, let cached = cache, !cached.results.isEmpty else { return }
+        guard canTestCachedNodes, let cached = cache else { return }
         measurementOrigin = CachedNodeChoice(endpoint: selected, automatic: automaticSelection)
         measurementKind = kind; invalidateVerification(); clearConnectionLocation(); errorMessage = nil
         measurementTask = Task { [self] in
@@ -393,7 +404,7 @@ final class VPNModel: ObservableObject {
                     var value: Double = -1
                     do {
                         if selected != endpoint {
-                            acceptRuntime(try await hotSwitch(to: endpoint, automatic: original.automatic))
+                            acceptRuntime(try await hotSwitch(to: endpoint, automatic: original.automatic, measurementCache: cached))
                         }
                         value = try await LiveNodeProbe.measure(kind, settings: effectiveSettings)
                         try Task.checkCancellation()
@@ -419,17 +430,17 @@ final class VPNModel: ObservableObject {
                 let endpoint = original.automatic ? fastestNode(in: cached) ?? original.endpoint : original.endpoint
                 do {
                     if selected != endpoint || automaticSelection != original.automatic {
-                        acceptRuntime(try await hotSwitch(to: endpoint, automatic: original.automatic))
+                        acceptRuntime(try await hotSwitch(to: endpoint, automatic: original.automatic, measurementCache: cached))
                     }
                     storeChoice(endpoint: endpoint, automatic: original.automatic)
                 } catch { message = "测试已结束，当前节点保持连接；恢复原选择失败：\(error.localizedDescription)" }
             }
-            await refreshDiagnostics()
         }
     }
 
     func cachedExportCount(kind: WARPProtocol, family: IPAddressFamily) throws -> Int {
-        try NodeExportService(accounts: accounts, caches: caches).count(kind: kind, family: family)
+        guard offlineSettingsRoot == nil else { return 0 }
+        return try NodeExportService(accounts: accounts, caches: caches).count(kind: kind, family: family)
     }
     func exportCachedNodes(kind: WARPProtocol, family: IPAddressFamily, format: NodeExportFormat) throws -> NodeExportPayload {
         guard kind == settings.tunnelProtocol else { throw WARPError.message("请先在设置中选择需要导出的协议。") }
@@ -473,8 +484,8 @@ final class VPNModel: ObservableObject {
         }
     }
 
-    private func startPreparation(force: Bool = false) {
-        guard initialized, foreground, !switching, !measuring else { return }
+    private func startPreparation(force requestedForce: Bool = false) {
+        guard initialized, foreground, !switching, !measuring, !disconnectingForOptimization else { return }
         let kind = selected.kind
         let family = addressFamily
         let configuration = effectiveSettings
@@ -489,8 +500,10 @@ final class VPNModel: ObservableObject {
             } catch { fail(error) }
             return
         }
+        let force = requestedForce || restartOptimizationAfterDisconnect
+        restartOptimizationAfterDisconnect = false
         if scanning, taskKind == kind, taskFamily == family, taskFingerprint == configuration.measurementFingerprint,
-           taskCacheHours == configuration.cacheHours, preparationTask?.isCancelled == false, !force { return }
+           taskCacheLifetime == configuration.cacheLifetime, preparationTask?.isCancelled == false, !force { return }
         let pending: OptimizationCheckpoint?
         do { pending = force ? nil : try pendingCheckpoint(kind: kind, settings: configuration) }
         catch { fail(error); return }
@@ -513,8 +526,9 @@ final class VPNModel: ObservableObject {
         if cache?.kind != kind || cache?.addressFamily != family { cache = nil; results = [:]; endpoints = [] }
         let previous = preparationTask
         previous?.cancel()
+        pendingAutoConnect = nil
         let ticket = UUID(); generation = ticket; taskKind = kind; taskFamily = family; taskFingerprint = configuration.measurementFingerprint
-        taskCacheHours = configuration.cacheHours
+        taskCacheLifetime = configuration.cacheLifetime
         scanning = true
         resumablePreparation = pending != nil
         progress = pending?.progress ?? .initial
@@ -537,6 +551,7 @@ final class VPNModel: ObservableObject {
                 cache = ready.cache
                 resumablePreparation = false
                 apply(ready.cache)
+                if !ready.reusedCache, settings.autoConnectAfterOptimization { pendingAutoConnect = ticket }
                 message = ready.reusedCache ? "已使用 \(kind.label) 节点缓存，无需重复注册或优选（\(family.label)）" : "\(kind.label) · \(family.label) 优选完成，缓存\(configuration.cacheDurationText)"
                 Diagnostics.record("cache \(ready.reusedCache ? "hit" : "saved") protocol=\(kind.rawValue) family=\(family.rawValue)", process: "app")
             } catch {
@@ -551,7 +566,7 @@ final class VPNModel: ObservableObject {
             guard generation == ticket else { return }
             scanning = false
             endBackgroundExecution()
-            await refreshDiagnostics()
+            await connectAfterOptimizationIfReady()
         }
     }
 
@@ -569,6 +584,11 @@ final class VPNModel: ObservableObject {
     }
 
     private func pendingCheckpoint(kind: WARPProtocol, settings: UserSettings) throws -> OptimizationCheckpoint? {
+        try Self.pendingCheckpoint(kind: kind, settings: settings, accounts: accounts, caches: caches, checkpoints: checkpoints)
+    }
+
+    private nonisolated static func pendingCheckpoint(kind: WARPProtocol, settings: UserSettings, accounts: KeychainAccountStore,
+                                                      caches: NodeCacheStore, checkpoints: OptimizationCheckpointStore) throws -> OptimizationCheckpoint? {
         guard let account = try accounts.load(kind), let saved = try checkpoints.load(kind, family: settings.addressFamily),
               saved.isValid(account: account, settings: settings, now: Date()) else { return nil }
         if let cached = try caches.load(kind, family: settings.addressFamily),
@@ -601,7 +621,8 @@ final class VPNModel: ObservableObject {
             Task { await prepare() }
             return
         }
-        startPreparation()
+        if pendingAutoConnect == generation { Task { await connectAfterOptimizationIfReady() } }
+        else { startPreparation() }
         if connected, connectionLocation == nil, locationTask == nil {
             locationKey = nil; refreshConnectionLocation()
         }
@@ -619,7 +640,7 @@ final class VPNModel: ObservableObject {
         if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--test-background-expiry=") }),
            let seconds = Int(argument.dropFirst("--test-background-expiry=".count)), (1...60).contains(seconds), backgroundTask != .invalid {
             testBackgroundDeadline = Task { [weak self] in
-                do { try await Task.sleep(for: .seconds(seconds)) } catch { return }
+                do { try await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000) } catch { return }
                 self?.backgroundTimeExpired()
             }
         }
@@ -642,11 +663,35 @@ final class VPNModel: ObservableObject {
             Diagnostics.record("background time expired; preparation paused with durable checkpoint", process: "app")
         }
     }
-    func scan() { startPreparation(force: !resumablePreparation) }
+    func scan() {
+        guard canOptimize else { return }
+        guard connected else { startPreparation(force: !resumablePreparation); return }
+        disconnectingForOptimization = true
+        errorMessage = nil
+        disconnect()
+        Task { [self] in
+            do {
+                try await waitUntilDisconnected()
+                // Keep the user's restart request if the app goes to the background before the disconnect completes.
+                restartOptimizationAfterDisconnect = true
+                disconnectingForOptimization = false
+                startPreparation()
+            } catch {
+                disconnectingForOptimization = false
+                fail(error)
+            }
+        }
+    }
     func stopScan() { preparationTask?.cancel() }
 
+    private func connectAfterOptimizationIfReady() async {
+        guard foreground, pendingAutoConnect == generation, settings.autoConnectAfterOptimization, !Task.isCancelled else { return }
+        pendingAutoConnect = nil
+        await connect()
+    }
+
     func connect() async {
-        guard !preparingApp, !authorizingVPN, !scanning, !switching, !active else { return }
+        guard !preparingApp, !authorizingVPN, !scanning, !switching, !disconnectingForOptimization, !active else { return }
         guard cacheIsFresh else { startPreparation(); return }
         authorizingVPN = true
         defer { authorizingVPN = false }
@@ -673,7 +718,7 @@ final class VPNModel: ObservableObject {
         } catch { fail(error) }
     }
 
-    func disconnect() { measurementTask?.cancel(); invalidateVerification(); manager?.connection.stopVPNTunnel(); trace = ""; message = "正在断开隧道" }
+    func disconnect() { pendingAutoConnect = nil; measurementTask?.cancel(); invalidateVerification(); manager?.connection.stopVPNTunnel(); trace = ""; message = "正在断开隧道" }
 
     func verify() async {
         guard connected, !switching, !verifying else { return }
@@ -721,47 +766,105 @@ final class VPNModel: ObservableObject {
             message = "\(selected.kind.detail) 数据链路验证成功"
             Diagnostics.record("verification passed protocol=\(selected.kind.rawValue) family=\(addressFamily.rawValue) endpoint=\(selected.address) warp=\(fields["warp"] ?? "") exit=\(fields["ip"] ?? "")", process: "app")
         } catch { if verificationID == ticket { trace = "验证失败"; fail(error) } }
-        await refreshDiagnostics()
     }
 
-    func refreshDiagnostics() async {
-        var text = "MTU: \(effectiveSettings.effectiveMTU)\nDNS issued: \(!effectiveSettings.doNotSetDNS)\nDNS protection: \(effectiveSettings.dnsLeakProtection)\nStage: \(progress.stage.rawValue) \(progress.fraction)\nCore: \(ClashVersion())\nVPN: \(statusLabel)\nProtocol: \(selected.kind.rawValue)\nFamily: \(addressFamily.rawValue)\nCache: \(cacheStatus)\n"
+    var diagnosticsOverview: String {
+        var text = "MTU: \(effectiveSettings.effectiveMTU)\nDNS issued: \(!effectiveSettings.doNotSetDNS)\nDNS protection: \(effectiveSettings.dnsLeakProtection)\nStage: \(progress.stage.rawValue) \(progress.fraction)\nCore: \(ClashVersion())\nVPN: \(statusLabel)\nProtocol: \(selected.kind.rawValue)\nFamily: \(addressFamily.rawValue)\n"
         if let connectionLocation { text += "Connection location: \(connectionLocation.country) \(connectionLocation.colo)\n" }
+        return text
+    }
+
+    func diagnosticsReport() async -> String {
+        if offlineSettingsRoot != nil { return diagnosticsOverview }
+        if let diagnosticsReportTask { return await diagnosticsReportTask.value }
+        let task = Task { await makeDiagnosticsReport() }
+        diagnosticsReportTask = task
+        let report = await task.value
+        diagnosticsReportTask = nil
+        return report
+    }
+
+    private func makeDiagnosticsReport() async -> String {
+        let overview = diagnosticsOverview
+        let effectiveSettings = effectiveSettings
+        let cacheValidationSettings = cacheValidationSettings
+        let (kind, family, cache, scanning) = (selected.kind, addressFamily, cache, scanning)
+        let (accounts, caches, checkpoints) = (accounts, caches, checkpoints)
         #if DEBUG
-        if let data = try? JSONEncoder().encode(measurements) {
-            text += "Cached measurements: " + String(decoding: data, as: UTF8.self) + "\n"
-        }
-        text += "Cached test: \(measurementKind?.rawValue ?? "none") node=\(testingNodeID ?? "none")\n"
-        if let encoded = try? JSONEncoder().encode(settings) {
-            text += "Settings snapshot: " + String(decoding: encoded, as: UTF8.self) + "\n"
-        }
-        let counts = Dictionary(uniqueKeysWithValues: WARPProtocol.allCases.map { kind in
-            (kind.rawValue, (try? CachedTunnelTarget.load(kind: kind, running: effectiveSettings, latest: settings, accounts: accounts, caches: caches))?.results.count ?? 0)
-        })
-        if let data = try? JSONSerialization.data(withJSONObject: counts, options: [.sortedKeys]) {
-            text += "Local caches: " + String(decoding: data, as: UTF8.self) + "\n"
-        }
+        let settings = settings
+        let measurements = measurements
+        let measurementStatus = "Cached test: \(measurementKind?.rawValue ?? "none") node=\(testingNodeID ?? "none")\n"
         #endif
-        if let cache {
-            let quality: [String: Any] = ["schema": cache.schema, "nodes": cache.results.count,
-                "latencyRounds": cache.results.map { $0.samples.count },
-                "downloadRounds": cache.results.map { $0.downloadMbps?.count ?? 0 },
-                "downloadEnabled": cache.results.first?.qualityProfile?.downloadEnabled ?? true,
-                "minimumMbps": cache.results.first?.qualityProfile?.minimumMbps ?? ProbeResult.minimumMbps]
-            if let data = try? JSONSerialization.data(withJSONObject: quality, options: [.sortedKeys]) {
-                text += "Quality cache: " + String(decoding: data, as: UTF8.self) + "\n"
+        let local = Task.detached(priority: .utility) {
+            let cacheStatus: String
+            if let cache, cache.kind == kind {
+                if let account = try? accounts.load(kind),
+                   cache.isValid(for: account, now: Date(), family: family, settings: cacheValidationSettings) {
+                    if cacheValidationSettings.cacheNeverExpires {
+                        cacheStatus = "节点缓存永不过期 · \(family.label)"
+                    } else {
+                        let expiry = cache.expiry(settings: cacheValidationSettings).formatted(date: .abbreviated, time: .shortened)
+                        cacheStatus = "缓存有效至 \(expiry) · \(family.label)"
+                    }
+                } else {
+                    cacheStatus = "节点缓存已过期"
+                }
+            } else {
+                cacheStatus = scanning ? "正在准备节点" : "暂无有效节点缓存"
             }
-        }
-        if let saved = try? pendingCheckpoint(kind: selected.kind, settings: effectiveSettings) {
-            let summary: [String: Any] = ["id": saved.id.uuidString, "screeningRounds": saved.screening.values.reduce(0) { $0 + $1.samples.count },
-                "completedNodes": saved.completed.count, "latencyRounds": saved.partial?.samples.count ?? 0,
-                "downloadRounds": saved.partial?.downloadMbps?.count ?? 0, "fraction": saved.progress.fraction,
-                "totalDownloadRounds": saved.completed.reduce(0) { $0 + ($1.downloadMbps?.count ?? 0) } + (saved.partial?.downloadMbps?.count ?? 0),
-                "startedAt": saved.startedAt.timeIntervalSince1970]
-            if let data = try? JSONSerialization.data(withJSONObject: summary, options: [.sortedKeys]) {
-                text += "Checkpoint: " + String(decoding: data, as: UTF8.self) + "\n"
+            var text = overview + "Cache: \(cacheStatus)\n"
+            #if DEBUG
+            if let data = try? JSONEncoder().encode(measurements) {
+                text += "Cached measurements: " + String(decoding: data, as: UTF8.self) + "\n"
             }
+            text += measurementStatus
+            if let encoded = try? JSONEncoder().encode(settings) {
+                text += "Settings snapshot: " + String(decoding: encoded, as: UTF8.self) + "\n"
+            }
+            let counts = Dictionary(uniqueKeysWithValues: WARPProtocol.allCases.map { kind in
+                (kind.rawValue, (try? CachedTunnelTarget.load(kind: kind, running: effectiveSettings, latest: settings, accounts: accounts, caches: caches))?.results.count ?? 0)
+            })
+            if let data = try? JSONSerialization.data(withJSONObject: counts, options: [.sortedKeys]) {
+                text += "Local caches: " + String(decoding: data, as: UTF8.self) + "\n"
+            }
+            #endif
+            if let cache {
+                let quality: [String: Any] = ["schema": cache.schema, "nodes": cache.results.count,
+                    "latencyRounds": cache.results.map { $0.samples.count },
+                    "downloadRounds": cache.results.map { $0.downloadMbps?.count ?? 0 },
+                    "downloadEnabled": cache.results.first?.qualityProfile?.downloadEnabled ?? true,
+                    "minimumMbps": cache.results.first?.qualityProfile?.minimumMbps ?? ProbeResult.minimumMbps]
+                if let data = try? JSONSerialization.data(withJSONObject: quality, options: [.sortedKeys]) {
+                    text += "Quality cache: " + String(decoding: data, as: UTF8.self) + "\n"
+                }
+            }
+            if let saved = try? Self.pendingCheckpoint(kind: kind, settings: effectiveSettings,
+                                                        accounts: accounts, caches: caches, checkpoints: checkpoints) {
+                let summary: [String: Any] = ["id": saved.id.uuidString, "screeningRounds": saved.screening.values.reduce(0) { $0 + $1.samples.count },
+                    "completedNodes": saved.completed.count, "latencyRounds": saved.partial?.samples.count ?? 0,
+                    "downloadRounds": saved.partial?.downloadMbps?.count ?? 0, "fraction": saved.progress.fraction,
+                    "totalDownloadRounds": saved.completed.reduce(0) { $0 + ($1.downloadMbps?.count ?? 0) } + (saved.partial?.downloadMbps?.count ?? 0),
+                    "startedAt": saved.startedAt.timeIntervalSince1970]
+                if let data = try? JSONSerialization.data(withJSONObject: summary, options: [.sortedKeys]) {
+                    text += "Checkpoint: " + String(decoding: data, as: UTF8.self) + "\n"
+                }
+            }
+            let logs = ["app", "probe", "tunnel"].map(Diagnostics.read).joined(separator: "\n")
+            return (text, logs)
         }
+        let provider = await providerDiagnostics()
+        let (report, logs) = await local.value
+        let snapshot = report + provider + "\n" + logs
+        await Task.detached(priority: .utility) {
+            if let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                try? snapshot.write(to: directory.appendingPathComponent("WARP-Diagnostics.txt"), atomically: true, encoding: .utf8)
+            }
+        }.value
+        return snapshot
+    }
+
+    private func providerDiagnostics() async -> String {
+        var text = ""
         if connected, let session = manager?.connection as? NETunnelProviderSession {
             let reply = try? await ProviderMessageClient.send(Data("status".utf8), timeout: 5) { try session.sendProviderMessage($0, responseHandler: $1) }
             if let reply, let object = try? JSONSerialization.jsonObject(with: reply) as? [String: Any] {
@@ -773,11 +876,8 @@ final class VPNModel: ObservableObject {
                 }
             }
         }
-        text += "\n" + Diagnostics.read("app") + "\n" + Diagnostics.read("probe") + "\n" + Diagnostics.read("tunnel")
-        diagnostics = text
-        try? text.write(to: reportURL, atomically: true, encoding: .utf8)
+        return text
     }
-    var reportURL: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("WARP-Diagnostics.txt") }
     private func fail(_ error: Error) {
         errorMessage = error.localizedDescription; message = LocalizedText(error.localizedDescription)
         if scanning { progress = progress.stopped(failed: true, detail: message) }

@@ -11,7 +11,7 @@
 
 **TrashVPN** is a third-party Cloudflare WARP client for Apple devices. Built natively with SwiftUI and powered by the Mihomo kernel, it supports automatic registration, endpoint discovery and optimization, and node export.
 
-Supported platforms: **iOS 16+, iPadOS 16+, and Apple silicon Macs**.
+Supported platforms: **iOS 15+, iPadOS 15+, and Apple silicon Macs**.
 
 ## Features
 

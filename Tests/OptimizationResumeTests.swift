@@ -18,6 +18,96 @@ final class OptimizationResumeTests: XCTestCase {
     }
     private func directory() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString) }
 
+    func testAlternatePortsFitEveryWGBudgetAndMatchTheAddressFamily() {
+        let campus = "8.35.211.127:864"
+        XCTAssertEqual(Set(EndpointCatalog.alternatePorts).count, 50)
+        for kind in [WARPProtocol.wg, .awg] {
+            for family in IPAddressFamily.allCases {
+                for strength in UserSettings.Strength.allCases {
+                    let primary = EndpointCatalog.candidates(account: account(kind), previous: nil, family: family, limit: strength.candidates)
+                    let fallback = EndpointCatalog.supplementalCandidates(for: primary)
+                    XCTAssertEqual(fallback.count, primary.count)
+                    XCTAssertLessThanOrEqual(fallback.count, strength.candidates)
+                    XCTAssertEqual(Set(fallback.map(\.id)).count, fallback.count)
+                    XCTAssertTrue(fallback.allSatisfy { $0.kind == kind && $0.family == family })
+                    XCTAssertTrue(Set(EndpointCatalog.alternatePorts).isSubset(of: Set(fallback.map(\.port))))
+                    if family == .ipv4 {
+                        XCTAssertTrue(primary.prefix(12).contains { $0.address == campus })
+                        XCTAssertEqual(fallback.first?.address, campus)
+                    }
+                }
+            }
+        }
+    }
+
+    func testRelaunchAfterFirstAlternateHitUsesThatPortAndSkipsCompletedWork() async throws {
+        let identity = account()
+        let nodes = EndpointCatalog.candidates(account: identity, previous: nil, limit: settings.strength.candidates)
+        let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = OptimizationCheckpointStore(root: root)
+        let initial = OptimizationCheckpoint(account: identity, settings: settings, candidates: nodes, now: start)
+        let journal = OptimizationJournal(initial, store: store)
+        var firstPass = [WARPEndpoint]()
+        var supplement = [WARPEndpoint]()
+        do {
+            _ = try await EndpointProbe.screen(journal: journal, settings: settings, progress: { _ in }) { endpoint, url in
+                if url == WARPConfiguration.testURL { firstPass.append(endpoint); return -1 }
+                XCTAssertEqual(url, WARPConfiguration.literalTraceURL)
+                if !supplement.isEmpty { throw CancellationError() }
+                supplement.append(endpoint)
+                XCTAssertEqual(endpoint.address, "8.35.211.127:864")
+                return 70
+            }
+            XCTFail("The simulated interruption should stop the scan")
+        } catch is CancellationError {}
+        XCTAssertEqual(firstPass, nodes)
+        let saved = try XCTUnwrap(store.load(.wg, family: .ipv4))
+        XCTAssertEqual(saved.supplementalScreening, true)
+        XCTAssertTrue(saved.isValid(account: identity, settings: settings, now: start))
+        var resumed = [WARPEndpoint]()
+        let result = try await EndpointProbe.screen(journal: OptimizationJournal(saved, store: store), settings: settings, progress: { _ in }) { endpoint, url in
+            XCTAssertEqual(url, WARPConfiguration.literalTraceURL)
+            XCTAssertEqual(endpoint.port, 864)
+            XCTAssertNotEqual(endpoint, supplement.first)
+            resumed.append(endpoint)
+            return 82
+        }
+        XCTAssertEqual(result.map(\.endpoint), supplement + resumed)
+        XCTAssertEqual(Set(result.map { $0.endpoint.host }).count, settings.strength.qualityCandidates)
+    }
+
+    func testMasqueSupplementRetriesOnlyItsOwnCandidatesAndEarlyStopsOnPrimarySuccess() async throws {
+        let identity = account(.masque)
+        var config = settings; config.tunnelProtocol = .masque
+        let nodes = EndpointCatalog.candidates(account: identity, previous: nil)
+        for primarySucceeds in [false, true] {
+            let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
+            let journal = OptimizationJournal(OptimizationCheckpoint(account: identity, settings: config, candidates: nodes),
+                store: OptimizationCheckpointStore(root: root))
+            var primary = [WARPEndpoint](), retry = [WARPEndpoint]()
+            let results = try await EndpointProbe.screen(journal: journal, settings: config, progress: { _ in }) { endpoint, url in
+                if url == WARPConfiguration.testURL { primary.append(endpoint); return primarySucceeds ? 85 : -1 }
+                XCTAssertEqual(url, WARPConfiguration.literalTraceURL)
+                retry.append(endpoint)
+                return -1
+            }
+            XCTAssertEqual(primary, primarySucceeds ? Array(nodes.prefix(config.strength.qualityCandidates)) : nodes)
+            XCTAssertEqual(retry, primarySucceeds ? [] : nodes)
+            XCTAssertEqual(results.count, primarySucceeds ? config.strength.qualityCandidates : 0)
+        }
+    }
+
+    func testScreeningAlternateUsesTheLiteralAddressAndAcceptsCloudflareHEADRedirect() throws {
+        let controller = try ProbeController.allocate()
+        let url = controller.url(endpoint: WARPEndpoint.fixtures[0], timeout: 5, target: WARPConfiguration.literalTraceURL)
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertEqual(items.first { $0.name == "url" }?.value, "https://1.1.1.1/cdn-cgi/trace")
+        XCTAssertEqual(items.first { $0.name == "expected" }?.value, "200/302")
+        XCTAssertEqual(EndpointProbe.failureReason(status: 504, response: nil), "timeout")
+        XCTAssertEqual(EndpointProbe.failureReason(status: 503, response: ["message": "lookup: no such host"]), "dns")
+        XCTAssertEqual(EndpointProbe.failureReason(status: 503, response: ["httpStatus": 403]), "http-403")
+    }
+
     func testRelaunchRestoresCandidateOrderAndIndividualScreeningRounds() throws {
         let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
         let identity = account(); var state = initial(identity, settings: settings)
@@ -61,8 +151,8 @@ final class OptimizationResumeTests: XCTestCase {
     func testCheckpointExpiryAlwaysUsesOriginalStartForEveryCacheDuration() throws {
         let root = directory(); defer { try? FileManager.default.removeItem(at: root) }
         let files = OptimizationCheckpointStore(root: root); let identity = account()
-        for hours in UserSettings.cacheDurations where hours > 0 {
-            var config = settings; config.cacheHours = hours
+        for days in [1, 2, 7, 30] {
+            var config = settings; config.cacheDays = days
             let state = initial(identity, settings: config)
             try files.save(state)
             let restored = try XCTUnwrap(files.load(.wg, family: .ipv4))

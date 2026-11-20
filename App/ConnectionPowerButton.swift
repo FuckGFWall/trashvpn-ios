@@ -52,7 +52,7 @@ struct ConnectionPowerButton: View {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.35)) { level = 0.12 }
             withAnimation(.easeOut(duration: 0.35)) { ringWarmth = 0.18 }
             settleTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(350))
+                try? await Task.sleep(nanoseconds: 350_000_000)
                 guard !Task.isCancelled else { return }
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 8)) { level = 0.82 }
                 withAnimation(.easeInOut(duration: 8)) { ringWarmth = 0.82 }
@@ -63,7 +63,7 @@ struct ConnectionPowerButton: View {
             // Fade both the pale ring and glow, starting as soon as connecting/disconnecting begins.
             withAnimation(initial ? nil : .easeInOut(duration: 0.75)) { ringWarmth = connected ? 1 : 0 }
             settleTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(800))
+                try? await Task.sleep(nanoseconds: 800_000_000)
                 guard !Task.isCancelled else { return }
                 moving = false
             }

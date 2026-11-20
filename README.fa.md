@@ -11,7 +11,7 @@
 
 <p dir="rtl"><strong>TrashVPN</strong> یک کلاینت غیررسمی Cloudflare WARP برای دستگاه‌های Apple است. این برنامه به‌صورت بومی با SwiftUI توسعه داده شده و از هستهٔ Mihomo استفاده می‌کند. ثبت‌نام خودکار، شناسایی و بهینه‌سازی نقاط اتصال و خروجی گرفتن از گره‌ها را پشتیبانی می‌کند.</p>
 
-<p dir="rtl">سیستم‌عامل‌های پشتیبانی‌شده: <strong>iOS 16 و بالاتر، iPadOS 16 و بالاتر و رایانه‌های Mac مجهز به Apple silicon</strong>.</p>
+<p dir="rtl">سیستم‌عامل‌های پشتیبانی‌شده: <strong>iOS 15 و بالاتر، iPadOS 15 و بالاتر و رایانه‌های Mac مجهز به Apple silicon</strong>.</p>
 
 ## <span dir="rtl">امکانات</span>
 

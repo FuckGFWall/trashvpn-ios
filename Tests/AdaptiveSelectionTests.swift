@@ -20,7 +20,7 @@ final class AdaptiveSelectionTests: XCTestCase {
             qualityVersion: 3, qualityProfile: settings.qualityProfile)
     }
     func testOldSettingsMigrateWithDownloadEnabledAndThreeMbpsWithoutLosingPreferences() throws {
-        var old = settings; old.mtu = 1400; old.cacheHours = 0; old.customDNS = "8.8.8.8"; old.theme = .dark
+        var old = settings; old.mtu = 1400; old.cacheNeverExpires = true; old.customDNS = "8.8.8.8"; old.theme = .dark
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any])
         object.removeValue(forKey: "minimumDownloadMbps"); object.removeValue(forKey: "downloadTestEnabled")
         let migrated = try JSONDecoder().decode(UserSettings.self, from: JSONSerialization.data(withJSONObject: object))
@@ -113,7 +113,7 @@ final class AdaptiveSelectionTests: XCTestCase {
         XCTAssertTrue(restored.isValid(for: account, now: now, settings: value))
         var changed = value; changed.downloadTestEnabled = true
         XCTAssertFalse(restored.isValid(for: account, now: now, settings: changed))
-        changed.cacheHours = 0
+        changed.cacheNeverExpires = true
         XCTAssertTrue(restored.isValid(for: account, now: now.addingTimeInterval(100 * 86400), settings: changed))
         XCTAssertEqual(restored.results, [measured])
     }
@@ -127,7 +127,7 @@ final class AdaptiveSelectionTests: XCTestCase {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(cache)) as? [String: Any])
         object["measurementFingerprint"] = "old-quality-v2-fingerprint"
         let restored = try JSONDecoder().decode(NodeCache.self, from: JSONSerialization.data(withJSONObject: object))
-        var forever = value; forever.cacheHours = 0; forever.minimumDownloadMbps = 50
+        var forever = value; forever.cacheNeverExpires = true; forever.minimumDownloadMbps = 50
         XCTAssertTrue(restored.canExport(for: account, family: .ipv4))
         XCTAssertTrue(restored.isValid(for: account, now: now.addingTimeInterval(365 * 86400), settings: forever))
         XCTAssertFalse(restored.isValid(for: account, now: now, settings: value))
@@ -156,10 +156,15 @@ final class AdaptiveSelectionTests: XCTestCase {
     func testScreeningResumeKeepsPriorAttemptsWhenFirstPassBudgetIsSmaller() async throws {
         let node = WARPEndpoint.fixtures[0]
         let saved = ProbeResult(endpoint: node, samples: [-1, 100], testedAt: now)
-        let output = try await EndpointProbe().run(endpoints: [node], account: identity(), samples: 1,
-            stopAfterSuccesses: 1, stopOnFirstSuccess: true, settings: settings, resuming: [node.id: saved],
-            checkpoint: { _ in XCTFail("Committed attempts must not be repeated") },
-            willTest: { _ in XCTFail("No new network request is needed") }, update: { _ in })
+        var state = OptimizationCheckpoint(account: identity(), settings: settings, candidates: [node])
+        state.screening[node.id] = saved
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journal = OptimizationJournal(state, store: OptimizationCheckpointStore(root: directory))
+        let output = try await EndpointProbe.screen(journal: journal, settings: settings, progress: { _ in }) { _, _ in
+            XCTFail("Committed attempts must not be repeated")
+            return -1
+        }
         XCTAssertEqual(output.map(\.samples), [[-1, 100]])
     }
     func testScreeningDoesNotRequestTheCoresExtraURLTestRound() throws {

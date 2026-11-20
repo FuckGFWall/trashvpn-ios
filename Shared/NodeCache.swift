@@ -34,6 +34,14 @@ struct NodeCache: Codable, Equatable, Sendable {
 
     func expiry(settings: UserSettings) -> Date { settings.cacheExpiry(from: createdAt) }
 
+    private var hasValidRecordedExpiry: Bool {
+        if expiresAt == .distantFuture { return true }
+        let duration = expiresAt.timeIntervalSince(createdAt)
+        if duration == 6 * 3600 || duration == 12 * 3600 { return true } // Legacy sub-day policies.
+        let days = duration / UserSettings.secondsPerDay
+        return days >= 1 && days <= Double(UserSettings.validCacheDays.upperBound) && days.rounded() == days
+    }
+
     /// Validate against the originally recorded policy so permanent caches and exports survive preference changes.
     func canExport(for account: WARPAccount, family: IPAddressFamily) -> Bool {
         guard [3, 4].contains(schema), account.isRegistered, account.kind == kind, account.fingerprint == accountFingerprint,
@@ -53,8 +61,7 @@ struct NodeCache: Codable, Equatable, Sendable {
             return expiresAt.timeIntervalSince(createdAt) == Self.lifetime && now >= createdAt && now < expiresAt
                 && !results.isEmpty && results.allSatisfy { $0.endpoint.kind == kind && $0.endpoint.family == family && $0.endpoint.isValid && $0.samples.count == 3 && $0.median != nil }
         }
-        guard canExport(for: account, family: family),
-              expiresAt == .distantFuture || UserSettings.cacheDurations.filter({ $0 > 0 }).contains(where: { expiresAt.timeIntervalSince(createdAt) == TimeInterval($0 * 3600) }) else { return false }
+        guard canExport(for: account, family: family), hasValidRecordedExpiry else { return false }
         if configuration.cacheNeverExpires { return true }
         return measurementFingerprint == configuration.measurementFingerprint && now >= createdAt && now < expiry(settings: configuration)
             && (schema == 4 ? qualityProfile == configuration.qualityProfile : sampleCount == configuration.strength.rounds)

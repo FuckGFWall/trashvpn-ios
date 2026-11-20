@@ -79,7 +79,7 @@ final class NodeMeasurementTests: XCTestCase {
     func testConnectWaitAllowsInitialDisconnectedStatusBeforeSystemStartsConnecting() async throws {
         let states: [NEVPNStatus] = [.disconnected, .connecting, .connected]
         var index = 0
-        try await VPNConnectionAwaiter.wait(timeout: .seconds(2), status: {
+        try await VPNConnectionAwaiter.wait(timeout: 2, status: {
             defer { index = min(index + 1, states.count - 1) }; return states[index]
         }, refresh: {})
         XCTAssertEqual(index, 2)

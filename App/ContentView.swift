@@ -2,7 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var model: VPNModel
-    @State private var showSettings = false
+    @State private var legacyShowSettings = false
+    @State private var path: [Destination] = []
+    private enum Destination: Hashable { case settings }
+    private var showSettings: Bool { legacyShowSettings || !path.isEmpty }
     @ScaledMetric(relativeTo: .caption) private var flagFontSize: CGFloat = 17
     @ScaledMetric(relativeTo: .caption) private var flagBaselineOffset: CGFloat = 2
     private let orange = Color(red: 1, green: 0.38, blue: 0.08)
@@ -10,44 +13,59 @@ struct ContentView: View {
     private func t(_ text: LocalizedText) -> String { text.localized(in: model.settings.language) }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 22) {
-                    VStack(spacing: 20) {
-                        Button {
-                            if model.active { model.disconnect() } else { Task { await model.connect() } }
-                        } label: {
-                            ConnectionPowerButton(status: model.authorizingVPN && !model.active ? .connecting : model.status)
-                        }.buttonStyle(.plain)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityLabel(t(model.active ? "断开连接" : "连接 WARP")).accessibilityValue(t(LocalizedText(model.statusLabel))).accessibilityIdentifier("connectButton")
-                            .disabled(model.switching || !model.active && (model.scanning || model.measuring || !model.cacheIsFresh))
-                        preparation
-                        connectionInfo
-                    }
-                    .padding(24).frame(maxWidth: .infinity)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28))
-
-                    nodes
-                }.padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 22)
-            }.id(model.settings.language).disabled(model.preparingApp || model.authorizingVPN).background(Color(.systemGroupedBackground))
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Text("TrashVPN").font(.system(size: 22, weight: .bold, design: .rounded))
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                            .disabled(model.preparingApp || model.authorizingVPN)
-                            .accessibilityLabel(t("设置")).accessibilityIdentifier("settingsButton")
-                    }
+        if #available(iOS 16.0, *) {
+            NavigationStack(path: $path) {
+                home.navigationDestination(for: Destination.self) { _ in SettingsView(model: model) }
+            }
+        } else {
+            NavigationView {
+                ZStack {
+                    home
+                    NavigationLink(isActive: $legacyShowSettings) { SettingsView(model: model) } label: { EmptyView() }
                 }
-                .navigationDestination(isPresented: $showSettings) { SettingsView(model: model) }
-                .alert(t("连接提示"), isPresented: Binding(get: { model.errorMessage != nil && !showSettings }, set: { if !$0 { model.errorMessage = nil } })) {
-                    Button(t("好")) { model.errorMessage = nil }
-                } message: { Text(model.errorMessage ?? "") }
+            }.navigationViewStyle(.stack)
         }
+    }
+
+    private var home: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                VStack(spacing: 20) {
+                    Button {
+                        if model.active { model.disconnect() } else { Task { await model.connect() } }
+                    } label: {
+                        ConnectionPowerButton(status: model.authorizingVPN && !model.active ? .connecting : model.status)
+                    }.buttonStyle(.plain)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityLabel(t(model.active ? "断开连接" : "连接 WARP")).accessibilityValue(t(LocalizedText(model.statusLabel))).accessibilityIdentifier("connectButton")
+                        .disabled(model.switching || model.disconnectingForOptimization || !model.active && (model.scanning || model.measuring || !model.cacheIsFresh))
+                    preparation
+                    connectionInfo
+                }
+                .padding(24).frame(maxWidth: .infinity)
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28))
+
+                nodes
+            }.padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 22)
+        }.id(model.settings.language).disabled(model.preparingApp || model.authorizingVPN).background(Color(.systemGroupedBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Text("TrashVPN").font(.system(size: 22, weight: .bold, design: .rounded))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        if #available(iOS 16.0, *) { path.append(.settings) }
+                        else { legacyShowSettings = true }
+                    } label: { Image(systemName: "gearshape") }
+                        .disabled(model.preparingApp || model.authorizingVPN)
+                        .accessibilityLabel(t("设置")).accessibilityIdentifier("settingsButton")
+                }
+            }
+            .alert(t("连接提示"), isPresented: Binding(get: { model.errorMessage != nil && !showSettings }, set: { if !$0 { model.errorMessage = nil } })) {
+                Button(t("好")) { model.errorMessage = nil }
+            } message: { Text(model.errorMessage ?? "") }
     }
 
     private var connectionInfo: some View {
@@ -83,17 +101,17 @@ struct ContentView: View {
 
     private var preparation: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(spacing: 12) {
                 Text(model.progress.localizedDisplayTitle(in: model.settings.language)).font(.caption).lineLimit(1).minimumScaleFactor(0.65)
                     .frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
                     .accessibilityIdentifier("progressStage")
-                Button(t(model.scanning ? "暂停" : model.resumablePreparation ? "继续优选" : "重新优选")) {
+                Button(t(model.scanning ? "暂停" : model.resumablePreparation && !model.active ? "继续优选" : "重新优选")) {
                     if model.scanning { model.stopScan() } else { model.scan() }
                 }.font(.caption.weight(.semibold)).buttonStyle(.bordered).controlSize(.small)
-                    .fixedSize().disabled(model.active).accessibilityIdentifier("scanButton")
+                    .fixedSize().disabled(!model.canOptimize).accessibilityIdentifier("scanButton")
             }
             PreparationProgressBar(progress: model.progress, running: model.scanning, language: model.settings.language)
-            if model.scanning || model.resumablePreparation || model.progress.stage == .failed {
+            if model.scanning || model.resumablePreparation || model.disconnectingForOptimization || model.progress.stage == .failed {
                 Text(t(model.message)).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("messageText")
             }
@@ -102,10 +120,9 @@ struct ContentView: View {
 
     private var nodes: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(t("选择节点")).font(.headline)
             HStack(spacing: 10) {
-                Text(t(LocalizedText(model.selectedNodeName))).font(.subheadline.weight(.medium)).foregroundStyle(orange)
-                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("selectedNodeName")
+                Text(t("选择节点")).font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading).accessibilityIdentifier("nodeSectionTitle")
                 testButton(.latency, title: "延迟", identifier: "latencyTestButton")
                 testButton(.download, title: "测速", identifier: "speedTestButton")
             }
@@ -128,7 +145,7 @@ struct ContentView: View {
     private func testButton(_ kind: NodeMeasurementKind, title: String, identifier: String) -> some View {
         Button(model.measurementKind == kind ? t("停止") : t(LocalizedText(title))) { model.testCachedNodes(kind) }
             .font(.caption.weight(.semibold)).buttonStyle(.bordered).controlSize(.small)
-            .disabled(model.measurementKind != kind && (model.selectionUnavailable || !model.cacheIsFresh))
+            .disabled(model.measurementKind != kind && !model.canTestCachedNodes)
             .accessibilityIdentifier(identifier)
     }
     private func nodeRow(title: String, endpoint: WARPEndpoint, checked: Bool, latencyID: String, speedID: String) -> some View {

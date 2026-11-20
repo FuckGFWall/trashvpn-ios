@@ -62,4 +62,26 @@ final class NodeQualityTests: XCTestCase {
         var error: NSError?
         XCTAssertTrue(ClashCheckConfig(content, &error), error?.localizedDescription ?? "")
     }
+
+    func testProxyCredentialsOnLegacyAndCurrentCFNetwork() {
+        let proxy = ProbeProxy(port: 50_123, username: "test-user", password: "test-password")
+        let authentication = ProbeProxyAuthentication(proxy: proxy)
+        let origin = "speed.cloudflare.com"
+        func challenge(host: String, port: Int = 50_123, failures: Int = 0) -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+            let space = URLProtectionSpace(proxyHost: host, port: port, type: NSURLProtectionSpaceHTTPProxy,
+                realm: nil, authenticationMethod: NSURLAuthenticationMethodHTTPBasic)
+            return authentication.disposition(for: space, requestHost: origin, previousFailures: failures)
+        }
+        XCTAssertEqual(challenge(host: "127.0.0.1").0, .useCredential)
+        let (disposition, credential) = challenge(host: origin)
+        XCTAssertEqual(disposition, .useCredential)
+        XCTAssertEqual(credential?.user, proxy.username)
+        XCTAssertEqual(credential?.password, proxy.password)
+        XCTAssertEqual(challenge(host: origin, port: 50_124).0, .cancelAuthenticationChallenge)
+        XCTAssertEqual(challenge(host: origin, failures: 1).0, .cancelAuthenticationChallenge)
+        XCTAssertNil(challenge(host: "other.example").1)
+        let server = URLProtectionSpace(host: origin, port: 443, protocol: "https", realm: nil,
+            authenticationMethod: NSURLAuthenticationMethodHTTPBasic)
+        XCTAssertNil(authentication.disposition(for: server, requestHost: origin, previousFailures: 0).1)
+    }
 }

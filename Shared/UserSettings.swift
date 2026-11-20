@@ -31,8 +31,9 @@ struct UserSettings: Codable, Equatable, Sendable {
         var downloadWarmupBytes: Int { 256 * 1024 }
         var downloadBudgetMiB: Int { Int(ceil(Double(qualityCandidates * (measuredDownloadBytes + downloadWarmupBytes)) / 1024 / 1024)) }
     }
-    static let cacheDurations = [6, 12, 24, 48, 0]
-    static func cacheDurationLabel(_ hours: Int) -> String { hours == 0 ? "永不过期" : "\(hours) 小时" }
+    static let defaultCacheDays = 7
+    static let validCacheDays = 1...36_500
+    static let secondsPerDay: TimeInterval = 86_400
     var tunnelProtocol: WARPProtocol = .wg
     var theme: Theme = .system
     var language: AppLanguage = AppLanguage.system.resolved
@@ -42,7 +43,9 @@ struct UserSettings: Codable, Equatable, Sendable {
     var dnsLeakProtection = true
     var doNotSetDNS = false
     var strength: Strength = .medium
-    var cacheHours = 6
+    var autoConnectAfterOptimization = false
+    var cacheDays = Self.defaultCacheDays
+    var cacheNeverExpires = false
     var probeTimeout = 5
     var minimumDownloadMbps = 3.0
     var downloadTestEnabled = true
@@ -53,8 +56,10 @@ struct UserSettings: Codable, Equatable, Sendable {
 
     init() {}
     enum CodingKeys: String, CodingKey {
-        case tunnelProtocol, theme, language, addressFamily, mtu, customDNS, dnsLeakProtection, doNotSetDNS, strength, cacheHours, probeTimeout, minimumDownloadMbps, downloadTestEnabled
+        case tunnelProtocol, theme, language, addressFamily, mtu, customDNS, dnsLeakProtection, doNotSetDNS, strength, cacheDays, cacheNeverExpires, probeTimeout, minimumDownloadMbps, downloadTestEnabled
+        case autoConnectAfterOptimization
     }
+    private enum LegacyCodingKeys: String, CodingKey { case cacheHours }
     init(from decoder: Decoder) throws {
         self.init()
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -67,24 +72,40 @@ struct UserSettings: Codable, Equatable, Sendable {
         dnsLeakProtection = try c.decodeIfPresent(Bool.self, forKey: .dnsLeakProtection) ?? dnsLeakProtection
         doNotSetDNS = try c.decodeIfPresent(Bool.self, forKey: .doNotSetDNS) ?? doNotSetDNS
         strength = try c.decodeIfPresent(Strength.self, forKey: .strength) ?? strength
-        cacheHours = try c.decodeIfPresent(Int.self, forKey: .cacheHours) ?? cacheHours
+        autoConnectAfterOptimization = try c.decodeIfPresent(Bool.self, forKey: .autoConnectAfterOptimization) ?? autoConnectAfterOptimization
+        let legacyHours = try decoder.container(keyedBy: LegacyCodingKeys.self).decodeIfPresent(Int.self, forKey: .cacheHours)
+        cacheDays = try c.decodeIfPresent(Int.self, forKey: .cacheDays) ?? Self.daysForLegacyCache(hours: legacyHours)
+        cacheNeverExpires = try c.decodeIfPresent(Bool.self, forKey: .cacheNeverExpires) ?? (legacyHours == 0)
         probeTimeout = try c.decodeIfPresent(Int.self, forKey: .probeTimeout) ?? probeTimeout
         minimumDownloadMbps = try c.decodeIfPresent(Double.self, forKey: .minimumDownloadMbps) ?? minimumDownloadMbps
         downloadTestEnabled = try c.decodeIfPresent(Bool.self, forKey: .downloadTestEnabled) ?? downloadTestEnabled
     }
+    private static func daysForLegacyCache(hours: Int?) -> Int {
+        switch hours {
+        case 12, 24: return 1
+        case 48: return 2
+        default: return defaultCacheDays // Six hours was the old default.
+        }
+    }
     var effectiveMTU: Int { mtu == 0 ? 1280 : mtu }
-    var cacheNeverExpires: Bool { cacheHours == 0 }
     var cacheDurationLabel: String { cacheDurationText.source }
-    var cacheDurationText: LocalizedText { cacheHours == 0 ? "永不过期" : "\(cacheHours) 小时" }
-    var cacheLifetime: TimeInterval { cacheNeverExpires ? .infinity : TimeInterval(cacheHours * 3600) }
+    var cacheDurationText: LocalizedText {
+        if cacheNeverExpires { return "永不过期" }
+        return cacheDays == 1 ? "1 天" : "\(cacheDays) 天"
+    }
+    var cacheLifetime: TimeInterval { cacheNeverExpires ? .infinity : TimeInterval(cacheDays) * Self.secondsPerDay }
     func cacheExpiry(from start: Date) -> Date { cacheNeverExpires ? .distantFuture : start.addingTimeInterval(cacheLifetime) }
     func withCachePolicy(from latest: Self?) -> Self {
-        var value = self; value.cacheHours = latest?.cacheHours ?? cacheHours; return value
+        guard let latest else { return self }
+        var value = self
+        value.cacheDays = latest.cacheDays
+        value.cacheNeverExpires = latest.cacheNeverExpires
+        return value
     }
 
     func validated() throws -> Self {
         guard mtu == 0 || (1280...1500).contains(mtu) else { throw WARPError.message("MTU 请填写 0（自动），或 1280–1500 的整数。") }
-        guard Self.cacheDurations.contains(cacheHours) else { throw WARPError.message("请选择 6、12、24、48 小时或永不过期。") }
+        guard Self.validCacheDays.contains(cacheDays) else { throw WARPError.message("缓存有效期请输入 1 至 36500 天的整数。") }
         guard (1...30).contains(probeTimeout) else { throw WARPError.message("探测超时应为 1–30 秒。") }
         guard minimumDownloadMbps.isFinite, (0.1...1000).contains(minimumDownloadMbps) else { throw WARPError.message("最小下载速度应为 0.1–1000 Mbps。") }
         guard !(doNotSetDNS && dnsLeakProtection) else { throw WARPError.message("保留系统 DNS 时无法同时启用 DNS 防泄漏。") }

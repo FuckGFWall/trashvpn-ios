@@ -23,11 +23,14 @@ struct ProbeController: Sendable {
         guard bound == 0, queried == 0, address.sin_port != 0 else { throw WARPError.message("无法分配本地测速端口。") }
         return Self(port: UInt16(bigEndian: address.sin_port), secret: UUID().uuidString)
     }
-    func url(endpoint: WARPEndpoint, timeout: Int) -> URL {
+    func url(endpoint: WARPEndpoint, timeout: Int, target: String = WARPConfiguration.testURL) -> URL {
         var components = URLComponents(string: "http://\(address)")!
         components.path = "/proxies/\(endpoint.name)/delay"
-        components.queryItems = [URLQueryItem(name: "url", value: WARPConfiguration.testURL),
-            URLQueryItem(name: "timeout", value: String(timeout * 1000)), URLQueryItem(name: "expected", value: "200-299")]
+        // The core sends HEAD without following redirects. Cloudflare's literal trace
+        // also returns 302 for HEAD; quality verification requires a real WARP trace via GET.
+        let expected = target == WARPConfiguration.literalTraceURL ? "200/302" : "200-299"
+        components.queryItems = [URLQueryItem(name: "url", value: target),
+            URLQueryItem(name: "timeout", value: String(timeout * 1000)), URLQueryItem(name: "expected", value: expected)]
         return components.url!
     }
 }

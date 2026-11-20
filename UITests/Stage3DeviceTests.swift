@@ -26,11 +26,16 @@ final class Stage3DeviceTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: timeout), .completed)
         XCTAssertFalse(app.alerts["连接提示"].exists, app.alerts.debugDescription)
     }
+    private func settingsBack(_ app: XCUIApplication) -> XCUIElement {
+        app.navigationBars.matching(NSPredicate(format: "identifier IN %@", ["设置", "設置", "Settings", "تنظیمات"]))
+            .firstMatch.buttons.firstMatch
+    }
+
     // Settings now save automatically; legacy scenarios use this helper to return home.
     private func saveSettings(_ app: XCUIApplication) {
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let saved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            !app.buttons["settingsClose"].exists || app.alerts["设置提示"].exists
+            !self.settingsBack(app).exists || app.alerts["设置提示"].exists
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [saved], timeout: 10), .completed)
         XCTAssertFalse(app.alerts["设置提示"].exists, app.alerts["设置提示"].debugDescription)
@@ -38,16 +43,22 @@ final class Stage3DeviceTests: XCTestCase {
     private func showSettings(_ app: XCUIApplication) {
         let button = app.buttons["settingsButton"]
         button.tap()
-        if !app.buttons["settingsClose"].waitForExistence(timeout: 3) {
+        if !self.settingsBack(app).waitForExistence(timeout: 3) {
             // A floating system control may cover the center of the navigation item.
             button.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.95)).tap()
         }
-        XCTAssertTrue(app.buttons["settingsClose"].waitForExistence(timeout: 5), XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)
+        if !self.settingsBack(app).waitForExistence(timeout: 3), button.exists {
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.9)))
+            app.activate()
+            button.tap()
+        }
+        XCTAssertTrue(self.settingsBack(app).waitForExistence(timeout: 5), app.debugDescription)
     }
     private func openMenu(_ identifier: String, option: String, app: XCUIApplication) {
         let menu = app.buttons[identifier], choice = app.buttons[option]
         reveal(menu, app: app)
-        let rtl = app.buttons["settingsClose"].frame.midX > app.frame.midX
+        let rtl = app.navigationBars["تنظیمات"].exists
         let point = CGVector(dx: rtl ? 0.06 : 0.94, dy: 0.5)
         menu.coordinate(withNormalizedOffset: point).tap()
         if !choice.waitForExistence(timeout: 3) {
@@ -62,6 +73,7 @@ final class Stage3DeviceTests: XCTestCase {
         return frame.height > 0 && frame.midY > app.frame.minY + 110 && frame.midY < bottom - 10
     }
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {
+        if visible(element, app: app) { return }
         let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.visible(element, app: app) }, object: nil)
         if XCTWaiter.wait(for: [settled], timeout: 1) == .completed { return }
         for _ in 0..<6 {
@@ -76,12 +88,20 @@ final class Stage3DeviceTests: XCTestCase {
     }
     private func fill(_ element: XCUIElement, _ value: String, app: XCUIApplication) {
         reveal(element, app: app)
-        element.tap()
+        if element.elementType == .textField && element.identifier != "customDNSField" {
+            element.coordinate(withNormalizedOffset: CGVector(dx: -0.55, dy: 0.5)).tap()
+        } else {
+            element.tap()
+        }
         let old = element.value as? String ?? ""
-        if element.elementType == .textField { element.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.95)).tap() }
         element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count + 2) + value)
         XCTAssertEqual(element.value as? String, value)
         if app.buttons["keyboardDone"].waitForExistence(timeout: 2) { app.buttons["keyboardDone"].tap() }
+    }
+    private func tapCacheNeverExpires(_ app: XCUIApplication) {
+        let toggle = app.switches["cacheNeverExpiresSwitch"]
+        reveal(toggle, app: app)
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     }
     private func shot(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
@@ -143,7 +163,7 @@ final class Stage3DeviceTests: XCTestCase {
         fill(app.descendants(matching: .any)["customDNSField"].firstMatch, "https://1.1.1.1/dns-query", app: app)
         reveal(app.buttons["strengthPicker"], app: app)
         openMenu("strengthPicker", option: "低", app: app); app.buttons["低"].tap()
-        app.buttons["cacheHoursPicker"].tap(); app.buttons["48 小时"].tap()
+        fill(app.textFields["cacheDaysField"], "2", app: app)
         fill(app.textFields["timeoutField"], "7", app: app)
         shot(app, "Settings DNS strength 48-hour cache and timeout")
         saveSettings(app)
@@ -156,7 +176,7 @@ final class Stage3DeviceTests: XCTestCase {
         XCTAssertEqual(app.textFields["mtuField"].value as? String, "1400")
         reveal(app.textFields["timeoutField"], app: app)
         XCTAssertEqual(app.textFields["timeoutField"].value as? String, "7")
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
     func test30CustomDNSAndMTUTunnelAndBackground() throws {
@@ -233,7 +253,7 @@ final class Stage3DeviceTests: XCTestCase {
         fill(app.descendants(matching: .any)["customDNSField"].firstMatch, "https://cloudflare-dns.com/dns-query", app: app)
         reveal(app.buttons["strengthPicker"], app: app)
         openMenu("strengthPicker", option: "低", app: app); app.buttons["低"].tap()
-        app.buttons["cacheHoursPicker"].tap(); app.buttons["12 小时"].tap()
+        fill(app.textFields["cacheDaysField"], "1", app: app)
         fill(app.textFields["timeoutField"], "10", app: app)
         saveSettings(app)
         waitReady(app)
@@ -277,8 +297,8 @@ final class Stage3DeviceTests: XCTestCase {
         let line = try XCTUnwrap(report.components(separatedBy: "\n").first(where: { $0.hasPrefix("Checkpoint: ") }))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.dropFirst("Checkpoint: ".count).utf8)) as? [String: Any])
         app.navigationBars["连接诊断"].buttons.element(boundBy: 0).tap()
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.buttons["settingsClose"])
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: self.settingsBack(app))
         waitForExpectations(timeout: 10)
         return (object, report)
     }
@@ -395,8 +415,7 @@ final class Stage3DeviceTests: XCTestCase {
             "customDNS": "", "dnsLeakProtection": true, "doNotSetDNS": false, "strength": "medium", "cacheHours": 6, "probeTimeout": 10])
         waitReady(app)
         showSettings(app)
-        reveal(app.buttons["cacheHoursPicker"], app: app)
-        app.buttons["cacheHoursPicker"].tap(); app.buttons["永不过期"].tap()
+        tapCacheNeverExpires(app)
         saveSettings(app); waitReady(app, timeout: 10)
         XCTAssertTrue(app.staticTexts["cacheStatus"].label.contains("永不过期"))
         shot(app, "Permanent cache displayed on home")
@@ -458,8 +477,8 @@ final class Stage3DeviceTests: XCTestCase {
         let line = try XCTUnwrap(report.components(separatedBy: "\n").first { $0.hasPrefix("Quality cache: ") })
         let quality = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.dropFirst("Quality cache: ".count).utf8)) as? [String: Any])
         app.navigationBars["连接诊断"].buttons.element(boundBy: 0).tap()
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.buttons["settingsClose"])
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: self.settingsBack(app))
         waitForExpectations(timeout: 10)
         return (quality, report)
     }
@@ -489,7 +508,7 @@ final class Stage3DeviceTests: XCTestCase {
         showSettings(app); reveal(toggle, app: app)
         XCTAssertEqual(toggle.value as? String, "0")
         XCTAssertEqual(speed.value as? String, "3.5")
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let start = Date()
         tapScan(app)
         expectation(for: NSPredicate(format: "label CONTAINS %@", "8/14 连通筛选 ·"), evaluatedWith: app.staticTexts["progressStage"])
@@ -582,8 +601,8 @@ final class Stage3DeviceTests: XCTestCase {
         let line = try XCTUnwrap(report.components(separatedBy: "\n").first { $0.hasPrefix("Live snapshot: ") })
         let state = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(line.dropFirst("Live snapshot: ".count).utf8)) as? [String: Any])
         app.navigationBars["连接诊断"].buttons.element(boundBy: 0).tap()
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.buttons["settingsClose"])
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: self.settingsBack(app))
         waitForExpectations(timeout: 10)
         return (state, report)
     }
@@ -592,7 +611,7 @@ final class Stage3DeviceTests: XCTestCase {
         let picker = app.buttons["protocolPicker"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5)); XCTAssertTrue(picker.isEnabled)
         picker.tap(); app.buttons[kind].tap()
-        app.buttons["settingsClose"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        self.settingsBack(app).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
     private func assertSameTunnel(_ before: [String: Any], _ after: [String: Any]) {
         XCTAssertEqual(before["sessionID"] as? String, after["sessionID"] as? String)
@@ -655,8 +674,7 @@ final class Stage3DeviceTests: XCTestCase {
             "strength": "low", "cacheHours": 0, "probeTimeout": 10, "minimumDownloadMbps": 1, "downloadTestEnabled": true])
         waitReady(app, timeout: 600); connect(app)
         let (before, _) = try liveReport(app, expectedKind: "wg")
-        showSettings(app); reveal(app.buttons["cacheHoursPicker"], app: app)
-        app.buttons["cacheHoursPicker"].tap(); app.buttons["6 小时"].tap()
+        showSettings(app); tapCacheNeverExpires(app)
         saveSettings(app)
         switchProtocol("MASQUE", app: app)
         expectation(for: NSPredicate(format: "label == %@", "未连接"), evaluatedWith: app.staticTexts["vpnStatus"])
@@ -674,8 +692,7 @@ final class Stage3DeviceTests: XCTestCase {
         XCTAssertEqual(after["revision"] as? Int, 0)
         let attachment = XCTAttachment(string: finalReport); attachment.name = "No cache preparation followed by manual connection"; attachment.lifetime = .keepAlways; add(attachment)
         disconnect(app)
-        showSettings(app); reveal(app.buttons["cacheHoursPicker"], app: app)
-        app.buttons["cacheHoursPicker"].tap(); app.buttons["永不过期"].tap()
+        showSettings(app); tapCacheNeverExpires(app)
         saveSettings(app); waitReady(app, timeout: 15)
     }
 
@@ -711,7 +728,7 @@ final class Stage3DeviceTests: XCTestCase {
         let app = launch("masque", reset: false)
         addTeardownBlock {
             app.activate()
-            if app.buttons["settingsClose"].exists { app.buttons["settingsClose"].tap() }
+            if self.settingsBack(app).exists { self.settingsBack(app).tap() }
             let power = app.buttons["connectButton"]
             if power.exists, let state = power.value as? String, state != "未连接", state != "正在断开" {
                 power.tap()
@@ -734,7 +751,7 @@ final class Stage3DeviceTests: XCTestCase {
         let progress = app.descendants(matching: .any)["preparationProgress"].firstMatch
         XCTAssertEqual(progress.value as? String, "100%")
         showSettings(app)
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         for _ in 0..<8 { XCTAssertEqual(progress.value as? String, "100%") }
         XCUIDevice.shared.press(.home)
         app.activate()
@@ -748,7 +765,7 @@ final class Stage3DeviceTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [found], timeout: 45), .completed, location.label)
         shot(app, "Connected orange power button with country flag and colo")
         showSettings(app)
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         for _ in 0..<8 { XCTAssertEqual(progress.value as? String, "100%") }
         disconnect(app)
         for _ in 0..<8 { XCTAssertEqual(progress.value as? String, "100%") }
@@ -763,60 +780,98 @@ final class Stage3DeviceTests: XCTestCase {
         XCTAssertTrue(app.buttons["Clash"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["V2Ray"].exists)
         app.buttons["Clash"].tap()
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
     }
 
-    func test120AlwaysExpandedNodesLiveLatencyAndDownloadKeepVPNConnected() throws {
-        let app = launch("masque", reset: false)
-        waitReady(app, timeout: 240)
-        XCTAssertTrue(app.buttons["automaticNode"].exists)
-        XCTAssertTrue(app.buttons["endpoint0"].exists)
-        XCTAssertFalse(app.descendants(matching: .any)["nodeDisclosure"].exists)
-        XCTAssertFalse(app.staticTexts["cacheStatus"].exists)
-        XCTAssertFalse(app.buttons["verifyButton"].exists)
-        XCTAssertEqual(app.staticTexts["progressStage"].label, "连接已就绪")
-        XCTAssertEqual(app.staticTexts["selectedNodeName"].label, "自动选择")
-        let latency = app.buttons["latencyTestButton"]
-        reveal(latency, app: app); shot(app, "Always expanded cached nodes with compact test buttons")
-        latency.tap()
-        expectation(for: NSPredicate(format: "label == %@", "已连接"), evaluatedWith: app.staticTexts["vpnStatus"])
-        waitForExpectations(timeout: 35)
-        let spinning = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "endpointLatency")).allElementsBoundByIndex.contains { $0.value as? String == "测试中" || $0.label == "测试中" }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [spinning], timeout: 35), .completed)
-        shot(app, "Live latency spinner after automatically connecting VPN")
-        expectation(for: NSPredicate(format: "label == %@", "延迟"), evaluatedWith: latency)
-        waitForExpectations(timeout: 180)
-        XCTAssertEqual(app.staticTexts["vpnStatus"].label, "已连接")
-        let firstLatency = app.descendants(matching: .any)["endpointLatency0"].firstMatch
-        XCTAssertNotEqual(firstLatency.value as? String, "测试中")
-        XCTAssertNotEqual(firstLatency.value as? String, "未测试")
-        shot(app, "Latency results keep VPN connected")
-        let speed = app.buttons["speedTestButton"]
-        reveal(speed, app: app); speed.tap()
-        let downloading = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "endpointSpeed")).allElementsBoundByIndex.contains { $0.value as? String == "测试中" || $0.label == "测试中" }
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [downloading], timeout: 35), .completed)
-        shot(app, "Per-node download testing spinner")
-        expectation(for: NSPredicate(format: "label == %@", "测速"), evaluatedWith: speed)
-        waitForExpectations(timeout: 240)
-        XCTAssertEqual(app.staticTexts["vpnStatus"].label, "已连接")
-        let firstSpeed = app.descendants(matching: .any)["endpointSpeed0"].firstMatch
-        XCTAssertNotEqual(firstSpeed.value as? String, "测试中")
-        XCTAssertNotEqual(firstSpeed.value as? String, "未测试")
-        shot(app, "Downloaded speed results without ratios or IP subtitles")
-        let remembered = firstLatency.value as? String
-        app.terminate(); app.launchArguments = []; app.launch()
-        XCTAssertTrue(app.buttons["endpoint0"].waitForExistence(timeout: 20))
-        XCTAssertEqual(app.staticTexts["vpnStatus"].label, "已连接")
-        XCTAssertEqual(app.descendants(matching: .any)["endpointLatency0"].firstMatch.value as? String, remembered)
-        XCTAssertFalse(app.buttons["verifyButton"].exists)
-        disconnect(app) // Developer testing cleanup; the product deliberately left it connected.
+    func test119CachedWireGuardReachesWARPEgress() throws {
+        let app = launch("wg", reset: false)
+        let power = app.buttons["connectButton"]
+        addTeardownBlock {
+            app.activate()
+            if power.value as? String == "已连接" { self.disconnect(app) }
+        }
+        waitReady(app, timeout: 120)
+        for _ in 0..<2 {
+            connect(app)
+            let location = app.descendants(matching: .any)["connectionLocation"].firstMatch
+            let reached = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                location.exists && location.label.range(of: #"^国家: .+\s+数据中心: [A-Z]{3}$"#, options: .regularExpression) != nil
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [reached], timeout: 35), .completed, location.label)
+
+            // The XCTest runner is a separate process. Confirm its own HTTPS request is also tunneled.
+            let options = URLSessionConfiguration.ephemeral
+            options.timeoutIntervalForResource = 18
+            let session = URLSession(configuration: options)
+            defer { session.invalidateAndCancel() }
+            let verified = expectation(description: "WARP exit from the test runner")
+            let url = URL(string: "https://1.1.1.1/cdn-cgi/trace?trashvpn=\(UUID().uuidString)")!
+            session.dataTask(with: url) { data, response, error in
+                defer { verified.fulfill() }
+                XCTAssertNil(error)
+                XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+                let trace = String(decoding: data ?? Data(), as: UTF8.self)
+                XCTAssertTrue(trace.split(whereSeparator: \.isNewline).contains { $0 == "warp=on" || $0 == "warp=plus" })
+            }.resume()
+            waitForExpectations(timeout: 20)
+            disconnect(app)
+        }
     }
 
+    func test120ConnectedLatencyDownloadAndRestartOptimization() throws {
+        let app = launch("wg", reset: false)
+        let power = app.buttons["connectButton"], scan = app.buttons["scanButton"]
+        addTeardownBlock {
+            app.activate()
+            if app.alerts["连接提示"].exists { app.alerts["连接提示"].buttons["好"].tap() }
+            if power.exists, let state = power.value as? String, state != "未连接", state != "正在断开" {
+                for _ in 0..<4 where !power.isHittable { app.swipeDown() }
+                if power.isEnabled { power.tap() }
+            }
+            if power.exists {
+                let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "未连接"), object: power)
+                XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 25), .completed)
+            }
+        }
+        waitReady(app, timeout: 120)
+        XCTAssertTrue(app.buttons["automaticNode"].exists)
+        XCTAssertTrue(app.buttons["endpoint0"].exists)
+        XCTAssertFalse(app.buttons["verifyButton"].exists)
+        connect(app)
+
+        for (identifier, title, metric) in [
+            ("latencyTestButton", "延迟", "endpointLatency0"),
+            ("speedTestButton", "测速", "endpointSpeed0")
+        ] {
+            let button = app.buttons[identifier]
+            reveal(button, app: app)
+            XCTAssertTrue(button.isEnabled)
+            XCTAssertEqual(power.value as? String, "已连接")
+            button.tap()
+            let started = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "停止"), object: button)
+            XCTAssertEqual(XCTWaiter.wait(for: [started], timeout: 12), .completed)
+            let done = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", title), object: button)
+            XCTAssertEqual(XCTWaiter.wait(for: [done], timeout: 180), .completed)
+            XCTAssertEqual(power.value as? String, "已连接")
+            let measured = app.descendants(matching: .any)[metric].firstMatch.value as? String
+            XCTAssertNotNil(measured)
+            XCTAssertNotEqual(measured, "测试中")
+            XCTAssertNotEqual(measured, "未测试")
+        }
+
+        reveal(scan, app: app)
+        XCTAssertTrue(scan.isEnabled)
+        XCTAssertEqual(scan.label, "重新优选")
+        scan.tap()
+        let optimizing = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            power.value as? String == "未连接" && scan.label == "暂停"
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [optimizing], timeout: 30), .completed)
+        XCTAssertFalse(power.isEnabled)
+        scan.tap()
+        XCTAssertEqual(power.value as? String, "未连接")
+    }
 
     func test140FullPageSettingsMenusAndAutosave() throws {
         let app = launch("masque", reset: false, fixture: ["tunnelProtocol": "masque", "addressFamily": "ipv4",
@@ -824,7 +879,7 @@ final class Stage3DeviceTests: XCTestCase {
             "probeTimeout": 5, "minimumDownloadMbps": 3, "downloadTestEnabled": true])
         addTeardownBlock {
             app.activate()
-            if app.buttons["settingsClose"].exists { app.buttons["settingsClose"].tap() }
+            if self.settingsBack(app).exists { self.settingsBack(app).tap() }
             let power = app.buttons["connectButton"]
             if power.exists, let state = power.value as? String, state != "未连接", state != "正在断开" {
                 power.tap()
@@ -891,9 +946,9 @@ final class Stage3DeviceTests: XCTestCase {
         openMenu("themePicker", option: "深色", app: app); app.buttons["深色"].tap()
         shot(app, "Full page dark settings with return button and no save button")
         openMenu("themePicker", option: "跟随系统", app: app); app.buttons["跟随系统"].tap()
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertTrue(app.buttons["connectButton"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["settingsClose"].exists)
+        XCTAssertFalse(self.settingsBack(app).exists)
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
         shot(app, "Returned home with VPN explicitly disconnected")
     }
@@ -904,7 +959,7 @@ final class Stage3DeviceTests: XCTestCase {
         let disconnected = ["未连接", "未連接", "Disconnected", "قطع شده"]
         addTeardownBlock {
             app.activate()
-            if app.buttons["settingsClose"].exists { app.buttons["settingsClose"].tap() }
+            if self.settingsBack(app).exists { self.settingsBack(app).tap() }
             let power = app.buttons["connectButton"]
             if power.exists, !disconnected.contains(power.value as? String ?? "") { power.tap() }
             if power.exists {
@@ -936,9 +991,9 @@ final class Stage3DeviceTests: XCTestCase {
             XCTAssertTrue(app.buttons["languagePicker"].label.contains(languageTitle))
             shot(app, "Settings language " + nativeName)
             if nativeName == "فارسی" {
-                XCTAssertGreaterThan(app.buttons["settingsClose"].frame.midX, app.frame.midX)
+                XCTAssertGreaterThan(self.settingsBack(app).frame.midX, app.frame.midX)
             }
-            app.buttons["settingsClose"].tap()
+            self.settingsBack(app).tap()
             XCTAssertTrue(app.staticTexts[homeTitle].waitForExistence(timeout: 5))
             shot(app, "Home language " + nativeName)
             showSettings(app)
@@ -962,7 +1017,7 @@ final class Stage3DeviceTests: XCTestCase {
         showSettings(app)
         XCTAssertTrue(app.navigationBars["Settings"].exists)
         openMenu("languagePicker", option: "简体中文", app: app); app.buttons["简体中文"].tap()
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
         shot(app, "Finished multilingual verification with VPN disconnected")
     }
@@ -977,8 +1032,8 @@ final class Stage3DeviceTests: XCTestCase {
         let browserOpened = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in app.state != .runningForeground }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [browserOpened], timeout: 10), .completed)
         app.activate()
-        XCTAssertTrue(app.buttons["settingsClose"].waitForExistence(timeout: 10))
-        app.buttons["settingsClose"].tap()
+        XCTAssertTrue(self.settingsBack(app).waitForExistence(timeout: 10))
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
         shot(app, "Browser link opened and returned with VPN disconnected")
     }
@@ -1003,7 +1058,7 @@ final class Stage3DeviceTests: XCTestCase {
         shot(app, "Chinese settings with compact default DNS")
         reveal(donate, app: app)
         shot(app, "Final About and donation styling")
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
     }
 
@@ -1017,7 +1072,7 @@ final class Stage3DeviceTests: XCTestCase {
             XCTAssertEqual(dns.placeholderValue, prompt)
             shot(app, "Final default DNS prompt " + language)
         }
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
     }
 
@@ -1060,37 +1115,46 @@ final class Stage3DeviceTests: XCTestCase {
             let opened = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in app.state != .runningForeground }, object: nil)
             XCTAssertEqual(XCTWaiter.wait(for: [opened], timeout: 10), .completed)
             app.activate()
-            XCTAssertTrue(app.buttons["settingsClose"].waitForExistence(timeout: 10))
+            XCTAssertTrue(self.settingsBack(app).waitForExistence(timeout: 10))
         }
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
     }
 
-    func test170IOS16SettingsCompatibilityWithoutNetwork() throws {
+    func test170SettingsCompatibilityWithoutNetwork() throws {
         let app = XCUIApplication()
-        let fixture: [String: Any] = ["language": "zh-Hans", "tunnelProtocol": "masque", "mtu": 1400, "cacheHours": 0]
+        let fixture: [String: Any] = [
+            "language": "zh-Hans", "tunnelProtocol": "masque", "mtu": 1400,
+            "cacheHours": 0, "customDNS": "", "doNotSetDNS": false
+        ]
+        let dns = app.descendants(matching: .any)["customDNSField"].firstMatch
+        let customDNS = "1.1.1.1\n8.8.8.8"
         app.launchArguments = ["--test-offline-ui", "--settings-json=" + (try JSONSerialization.data(withJSONObject: fixture)).base64EncodedString()]
         app.launch()
         XCTAssertTrue(app.buttons["connectButton"].waitForExistence(timeout: 20))
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "未连接")
         XCTAssertFalse(app.buttons["connectButton"].isEnabled)
         showSettings(app)
-        fill(app.textFields["mtuField"], "1420", app: app)
         fill(app.textFields["timeoutField"], "7", app: app)
+        fill(app.textFields["mtuField"], "1420", app: app)
+        fill(dns, customDNS, app: app)
         for _ in 0..<5 { app.swipeDown() }
         openMenu("languagePicker", option: "English", app: app)
         app.buttons["English"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-        shot(app, "iOS 16 settings with working focus autosave and language change")
-        app.buttons["settingsClose"].tap()
+        shot(app, "Settings with working focus autosave and language change")
+        self.settingsBack(app).tap()
         app.terminate(); app.launchArguments = ["--test-offline-ui"]; app.launch()
         XCTAssertTrue(app.buttons["connectButton"].waitForExistence(timeout: 20))
         showSettings(app)
         XCTAssertTrue(app.navigationBars["Settings"].exists)
+        reveal(app.textFields["mtuField"], app: app)
         XCTAssertEqual(app.textFields["mtuField"].value as? String, "1420")
+        reveal(dns, app: app)
+        XCTAssertEqual(dns.value as? String, customDNS)
         reveal(app.textFields["timeoutField"], app: app)
         XCTAssertEqual(app.textFields["timeoutField"].value as? String, "7")
-        app.buttons["settingsClose"].tap()
+        self.settingsBack(app).tap()
         XCTAssertEqual(app.buttons["connectButton"].value as? String, "Disconnected")
     }
 
@@ -1099,7 +1163,7 @@ final class Stage3DeviceTests: XCTestCase {
             "language": "zh-Hans", "cacheHours": 0, "downloadTestEnabled": false])
         addTeardownBlock {
             app.activate()
-            if app.buttons["settingsClose"].exists { app.buttons["settingsClose"].tap() }
+            if self.settingsBack(app).exists { self.settingsBack(app).tap() }
             let power = app.buttons["connectButton"]
             if power.exists, let state = power.value as? String, state != "未连接", state != "正在断开" { power.tap() }
             let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "未连接"), object: power)
@@ -1116,6 +1180,163 @@ final class Stage3DeviceTests: XCTestCase {
         shot(app, "Orange ring and larger flag with original caption text")
         disconnect(app)
         shot(app, "Ring returned to gray after disconnecting VPN")
+    }
+
+    func test170SettingsEdgeBackAndCacheDays() {
+        let app = launch("masque", reset: false, fixture: ["language": "zh-Hans", "tunnelProtocol": "masque", "mtu": 0])
+        let power = app.buttons["connectButton"]
+        addTeardownBlock {
+            app.activate()
+            if self.settingsBack(app).exists { self.settingsBack(app).tap() }
+            if power.exists, let state = power.value as? String, state != "未连接", state != "正在断开" { power.tap() }
+            let disconnected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "未连接"), object: power)
+            XCTAssertEqual(XCTWaiter.wait(for: [disconnected], timeout: 20), .completed)
+        }
+        showSettings(app)
+        XCTAssertTrue(app.staticTexts["设置为 0 则使用自动 MTU。"].exists)
+        let days = app.textFields["cacheDaysField"]
+        let toggle = app.switches["cacheNeverExpiresSwitch"]
+        reveal(days, app: app)
+        XCTAssertEqual(days.value as? String, "7")
+        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertLessThan(toggle.frame.midY, days.frame.midY)
+        shot(app, "Cache expiry defaults to seven days")
+        fill(days, "0", app: app)
+        XCTAssertTrue(app.staticTexts["settingsInputError"].waitForExistence(timeout: 5))
+        fill(days, "12", app: app)
+        tapCacheNeverExpires(app)
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertFalse(days.isEnabled)
+        shot(app, "Permanent cache disables but remembers the day count")
+
+        func swipeBack(fromRight: Bool) {
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: fromRight ? 0.987 : 0.012, dy: 0.48))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: fromRight ? 0.20 : 0.80, dy: 0.48))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        swipeBack(fromRight: true)
+        XCTAssertTrue(self.settingsBack(app).exists)
+        XCTAssertFalse(app.buttons["settingsButton"].exists)
+        swipeBack(fromRight: false)
+        XCTAssertTrue(app.buttons["settingsButton"].waitForExistence(timeout: 5))
+        app.terminate(); app.launchArguments = []; app.launch()
+        showSettings(app)
+        reveal(toggle, app: app)
+        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertEqual(days.value as? String, "12")
+        tapCacheNeverExpires(app)
+        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertTrue(days.isEnabled)
+        XCTAssertEqual(days.value as? String, "12")
+        self.settingsBack(app).tap()
+        XCTAssertTrue(app.buttons["settingsButton"].waitForExistence(timeout: 5))
+        XCTAssertEqual(power.value as? String, "未连接")
+    }
+
+    func test171NativeSettingsReturnMenusAndDiagnosticsSharing() throws {
+        let app = try launchOfflineSettingsUI()
+        let home = app.buttons["settingsButton"]
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        XCTAssertEqual(app.staticTexts["progressStage"].frame.midY, app.buttons["scanButton"].frame.midY, accuracy: 2)
+        XCTAssertEqual(app.staticTexts["nodeSectionTitle"].frame.midY, app.buttons["latencyTestButton"].frame.midY, accuracy: 2)
+        XCTAssertEqual(app.buttons["latencyTestButton"].frame.midY, app.buttons["speedTestButton"].frame.midY, accuracy: 2)
+        showSettings(app)
+
+        let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.47))
+        let rightEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.47))
+        rightEdge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.20, dy: 0.47)))
+        XCTAssertTrue(settingsBack(app).exists)
+        leftEdge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.24, dy: 0.47)),
+                       withVelocity: .slow, thenHoldForDuration: 0.35)
+        XCTAssertTrue(settingsBack(app).exists)
+        leftEdge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.47)))
+        XCTAssertTrue(home.waitForExistence(timeout: 5))
+        showSettings(app)
+
+        openMenu("protocolPicker", option: "MASQUE", app: app)
+        XCTAssertTrue(app.buttons["WG"].exists)
+        app.buttons["WG"].tap()
+
+        let autoConnect = app.switches["autoConnectAfterOptimizationSwitch"]
+        reveal(autoConnect, app: app)
+        XCTAssertEqual(autoConnect.value as? String, "0")
+        autoConnect.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        XCTAssertEqual(autoConnect.value as? String, "1")
+        let cache = app.switches["cacheNeverExpiresSwitch"]
+        let family = app.buttons["addressFamilyPicker"]
+        reveal(cache, app: app)
+        XCTAssertLessThan(cache.frame.midY, family.frame.midY)
+        openMenu("addressFamilyPicker", option: "IPv6", app: app)
+        app.buttons["IPv6"].tap()
+        openMenu("exportFormatMenu", option: "sing-box", app: app)
+        app.buttons["sing-box"].tap()
+        XCTAssertEqual(app.buttons["exportFormatMenu"].value as? String, "sing-box")
+
+        let diagnostics = app.buttons["diagnosticsButton"]
+        reveal(diagnostics, app: app)
+        diagnostics.tap()
+        XCTAssertTrue(app.navigationBars["连接诊断"].waitForExistence(timeout: 3))
+        let share = app.buttons["diagnosticShareMenu"]
+        share.tap()
+        XCTAssertTrue(app.buttons["导出为文件"].waitForExistence(timeout: 3))
+        app.buttons["复制到剪贴板"].tap()
+        share.tap()
+        app.buttons["导出为文件"].tap()
+        let fileDestination = app.buttons.matching(NSPredicate(format: "label IN %@", ["Move", "移动", "Save", "存储"]))
+        XCTAssertTrue(fileDestination.firstMatch.waitForExistence(timeout: 5))
+
+        app.terminate()
+        app.launchArguments = ["--test-offline-ui"]
+        app.launch()
+        showSettings(app)
+        reveal(autoConnect, app: app)
+        XCTAssertEqual(autoConnect.value as? String, "1")
+    }
+
+    private func launchOfflineSettingsUI() throws -> XCUIApplication {
+        let app = XCUIApplication()
+        let fixture = ["language": "zh-Hans", "tunnelProtocol": "wg", "addressFamily": "ipv4"]
+        app.launchArguments = ["--test-offline-ui", "--settings-json=" + (try JSONSerialization.data(withJSONObject: fixture)).base64EncodedString()]
+        app.launch()
+        return app
+    }
+
+    func test172PersianSettingsReturnUsesNativeLeadingEdge() throws {
+        let app = try launchOfflineSettingsUI()
+        let home = app.buttons["settingsButton"]
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        showSettings(app)
+        openMenu("languagePicker", option: "فارسی", app: app)
+        app.buttons["فارسی"].tap()
+        XCTAssertTrue(app.navigationBars["تنظیمات"].waitForExistence(timeout: 5))
+        let leftEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.47))
+        let rightEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.995, dy: 0.47))
+        leftEdge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.86, dy: 0.47)))
+        XCTAssertTrue(settingsBack(app).exists)
+        rightEdge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.20, dy: 0.47)))
+        XCTAssertTrue(home.waitForExistence(timeout: 5))
+    }
+
+    func test999DisconnectTrashVPNAfterDeviceVerification() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("Device VPN cleanup is only needed on an iPhone.")
+        #else
+        let app = XCUIApplication()
+        app.launch()
+        let power = app.buttons["connectButton"]
+        XCTAssertTrue(power.waitForExistence(timeout: 20))
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: app.buttons["settingsButton"])
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 20), .completed)
+        let disconnected = ["未连接", "未連接", "Disconnected", "قطع شده"]
+        let disconnecting = ["正在断开", "正在斷開", "Disconnecting", "در حال قطع اتصال"]
+        let state = power.value as? String ?? ""
+        if !(disconnected + disconnecting).contains(state) {
+            XCTAssertTrue(["断开连接", "斷開連接", "Disconnect", "قطع اتصال"].contains(power.label))
+            power.tap()
+        }
+        let stopped = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value IN %@", disconnected), object: power)
+        XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 20), .completed)
+        #endif
     }
 
 }
