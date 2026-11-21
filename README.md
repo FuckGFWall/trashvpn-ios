@@ -11,7 +11,7 @@
 
 **TrashVPN** 是一款面向 Apple 设备的第三方 Cloudflare WARP 客户端，用 SwiftUI 原生开发，使用 Mihomo 内核，支持自动注册、节点筛选与优选，以及节点导出。
 
-支持 **iOS 16+、iPadOS 16+**，以及 **Apple Silicon Mac**。
+支持 **iOS 15+、iPadOS 15+**，以及 **Apple Silicon Mac**。
 
 ## 功能
 
